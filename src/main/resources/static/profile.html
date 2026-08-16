@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>个人中心</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .nav {
+            margin: 15px 0;
+        }
+        .nav a, .nav button {
+            margin-right: 10px;
+        }
+        .profile-box {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 5px;
+            max-width: 500px;
+        }
+        .avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #ddd;
+            margin-bottom: 15px;
+        }
+        .info-row {
+            margin: 8px 0;
+            color: #333;
+        }
+        .upload-box {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 5px;
+            max-width: 500px;
+        }
+        .upload-box input[type="file"] {
+            margin-bottom: 10px;
+        }
+        .upload-box button {
+            padding: 8px 15px;
+            cursor: pointer;
+        }
+        .preview {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #ddd;
+            margin: 10px 0;
+            display: none;
+        }
+        #tip {
+            color: red;
+            margin-top: 10px;
+        }
+        #successTip {
+            color: green;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<h2>个人中心</h2>
+
+<div class="nav">
+    <button onclick="logout()">退出登录</button>
+    <a href="posts.html">帖子广场</a>
+    <a href="post.html">去发帖</a>
+    <a href="my-posts.html">我的帖子</a>
+    <a href="community.html">添加小区</a>
+    <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
+    <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
+</div>
+
+<p id="tip"></p>
+<p id="successTip"></p>
+
+<div class="profile-box" id="profileBox" style="display:none;">
+    <img id="avatarImg" class="avatar" src="" alt="头像">
+    <div class="info-row">用户名：<span id="username"></span></div>
+    <div class="info-row">邮箱：<span id="email"></span></div>
+    <div class="info-row">角色：<span id="role"></span></div>
+    <div class="info-row">状态：<span id="status"></span></div>
+</div>
+
+<div class="upload-box">
+    <h3>编辑资料</h3>
+    <p>
+        用户名：<input type="text" id="editUsername" placeholder="新用户名">
+    </p>
+    <p>
+        邮　箱：<input type="text" id="editEmail" placeholder="新邮箱">
+    </p>
+    <p>
+        <button onclick="updateMyInfo()">保存修改</button>
+    </p>
+</div>
+
+<div class="upload-box">
+    <h3>更换头像</h3>
+    <p>
+        <input type="file" id="avatarFile" accept="image/*" onchange="previewAvatar()">
+    </p>
+    <img id="previewImg" class="preview" src="" alt="预览">
+    <p>
+        <button onclick="uploadAvatar()">上传头像</button>
+    </p>
+</div>
+
+<script>
+    let token = localStorage.getItem('token');
+
+    if (!token) {
+        document.getElementById('tip').innerText = '未登录，请先登录';
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 1500);
+    } else {
+        loadUserInfo();
+        showAdminLinks();
+    }
+
+    function showAdminLinks() {
+        const role = getRoleFromToken(token);
+        if (role === 'ADMIN') {
+            document.getElementById('adminLink').style.display = 'inline';
+            document.getElementById('adminPostsLink').style.display = 'inline';
+        }
+    }
+
+    function getRoleFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // 加载当前用户信息
+    function loadUserInfo() {
+        fetch('/user/info', {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code !== 200) {
+                    document.getElementById('tip').innerText = '加载失败：' + data.msg;
+                    return;
+                }
+
+                const user = data.data;
+                document.getElementById('username').innerText = user.username || '';
+                document.getElementById('email').innerText = user.email || '';
+                document.getElementById('role').innerText = user.role || '';
+                document.getElementById('status').innerText =
+                    (user.status !== null && user.status !== undefined)
+                        ? (user.status === 1 ? '启用' : '禁用')
+                        : '';
+
+                // 如果有头像就显示，没有就显示默认头像
+                const avatarImg = document.getElementById('avatarImg');
+                if (user.avatar) {
+                    avatarImg.src = user.avatar;
+                } else {
+                    avatarImg.src = 'https://via.placeholder.com/120?text=No+Avatar';
+                }
+
+                document.getElementById('profileBox').style.display = 'block';
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+            });
+    }
+
+    // 预览头像
+    function previewAvatar() {
+        const fileInput = document.getElementById('avatarFile');
+        const file = fileInput.files[0];
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const previewImg = document.getElementById('previewImg');
+            previewImg.src = e.target.result;
+            previewImg.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // 上传头像
+    function uploadAvatar() {
+        const fileInput = document.getElementById('avatarFile');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert('请选择一张图片');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/user/updateAvatar', {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            },
+            body: formData
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    document.getElementById('successTip').innerText = '头像上传成功';
+                    document.getElementById('tip').innerText = '';
+                    // 刷新用户信息，显示新头像
+                    loadUserInfo();
+                    // 清空预览
+                    document.getElementById('previewImg').style.display = 'none';
+                    fileInput.value = '';
+                } else {
+                    document.getElementById('tip').innerText = '上传失败：' + data.msg;
+                    document.getElementById('successTip').innerText = '';
+                }
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+                document.getElementById('successTip').innerText = '';
+            });
+    }
+
+    // 修改当前登录用户的信息
+    function updateMyInfo() {
+        const newUsername = document.getElementById('editUsername').value.trim();
+        const newEmail = document.getElementById('editEmail').value.trim();
+
+        if (!newUsername) {
+            alert('用户名不能为空');
+            return;
+        }
+        if (!newEmail) {
+            alert('邮箱不能为空');
+            return;
+        }
+
+        const params = new URLSearchParams();
+        params.append('username', newUsername);
+        params.append('email', newEmail);
+
+        fetch('/user/updateMyInfo', {
+            method: 'POST',
+            headers: {
+                'Authorization': token,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: params
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    // 后端返回了新 token，保存起来替换旧的
+                    localStorage.setItem('token', data.data);
+                    token = data.data;
+
+                    document.getElementById('successTip').innerText = '资料修改成功';
+                    document.getElementById('tip').innerText = '';
+                    document.getElementById('editUsername').value = '';
+                    document.getElementById('editEmail').value = '';
+                    loadUserInfo();
+                } else {
+                    document.getElementById('tip').innerText = '修改失败：' + data.msg;
+                    document.getElementById('successTip').innerText = '';
+                }
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+                document.getElementById('successTip').innerText = '';
+            });
+    }
+
+    // 统一处理响应
+    function handleResponse(response) {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(text || '请求失败，状态码：' + response.status);
+            });
+        }
+        return response.json();
+    }
+
+    // 退出登录
+    function logout() {
+        localStorage.removeItem('token');
+        alert('已退出登录');
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>

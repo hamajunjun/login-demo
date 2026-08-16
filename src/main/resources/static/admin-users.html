@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>用户管理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        h2 {
+            margin-bottom: 10px;
+        }
+        .toolbar {
+            margin: 15px 0;
+        }
+        .toolbar input {
+            padding: 5px;
+            width: 200px;
+        }
+        .toolbar button {
+            padding: 5px 10px;
+            margin-left: 5px;
+            cursor: pointer;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        .actions button {
+            margin-right: 5px;
+            cursor: pointer;
+        }
+        .pagination {
+            margin-top: 15px;
+        }
+        .pagination button {
+            margin-right: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        #editForm {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-top: 20px;
+            display: none;
+            background-color: #fafafa;
+        }
+        #editForm input {
+            padding: 5px;
+            margin-right: 10px;
+            width: 180px;
+        }
+        #tip {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<h2>用户管理（管理员）</h2>
+
+<p>
+    <button onclick="logout()">退出登录</button>
+    <a href="posts.html">帖子广场</a>
+    <a href="post.html">去发帖</a>
+    <a href="community.html">添加小区</a>
+    <a href="my-posts.html">我的帖子</a>
+    <a href="profile.html">个人中心</a>
+    <a href="admin-posts.html">帖子管理</a>
+</p>
+
+<div class="toolbar">
+    <input type="text" id="searchUsername" placeholder="输入用户名搜索">
+    <button onclick="searchUsers()">搜索</button>
+    <button onclick="resetSearch()">重置</button>
+</div>
+
+<p id="tip"></p>
+
+<table>
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>用户名</th>
+        <th>邮箱</th>
+        <th>角色</th>
+        <th>状态</th>
+        <th>创建时间</th>
+        <th>操作</th>
+    </tr>
+    </thead>
+    <tbody id="userTableBody">
+    <!-- 用户数据会填充到这里 -->
+    </tbody>
+</table>
+
+<div class="pagination" id="pagination" style="display: none;">
+    <button onclick="loadUsers(1)">首页</button>
+    <button onclick="loadUsers(currentPage - 1)">上一页</button>
+    <span id="pageInfoText"></span>
+    <button onclick="loadUsers(currentPage + 1)">下一页</button>
+    <button onclick="loadUsers(totalPages)">末页</button>
+</div>
+
+<div id="editForm">
+    <h3>编辑用户</h3>
+    <p>
+        ID：<input type="text" id="editId" readonly>
+        用户名：<input type="text" id="editUsername">
+        邮箱：<input type="text" id="editEmail">
+        <button onclick="updateUser()">保存</button>
+        <button onclick="cancelEdit()">取消</button>
+    </p>
+</div>
+
+<script>
+    const token = localStorage.getItem('token');
+    let currentPage = 1;
+    let totalPages = 1;
+
+    // 页面加载时检查登录状态
+    if (!token) {
+        document.getElementById('tip').innerText = '未登录，请先登录';
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 1500);
+    } else {
+        checkAdmin();
+    }
+
+    // 从 token 中解析角色，判断是否是管理员
+    function checkAdmin() {
+        const role = getRoleFromToken(token);
+        if (role !== 'ADMIN') {
+            document.getElementById('tip').innerText = '权限不足，仅管理员可访问';
+            setTimeout(() => {
+                window.location.href = 'post.html';
+            }, 1500);
+            return;
+        }
+        loadUsers(1);
+    }
+
+    // 解析 JWT token 中的 payload，取出 role
+    function getRoleFromToken(token) {
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            const json = JSON.parse(decoded);
+            return json.role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // 加载用户列表（分页）
+    function loadUsers(pageNum) {
+        if (pageNum < 1) pageNum = 1;
+        currentPage = pageNum;
+
+        fetch('/admin/user/list?pageNum=' + pageNum + '&pageSize=10', {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code !== 200) {
+                    document.getElementById('tip').innerText = '查询失败：' + data.msg;
+                    return;
+                }
+
+                const pageInfo = data.data;
+                totalPages = pageInfo.pages || 1;
+                renderUsers(pageInfo.list);
+                document.getElementById('pagination').style.display = 'block';
+                document.getElementById('pageInfoText').innerText =
+                    ' 第 ' + pageInfo.pageNum + ' / ' + totalPages + ' 页，共 ' + pageInfo.total + ' 条 ';
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+            });
+    }
+
+    // 搜索用户
+    function searchUsers() {
+        const username = document.getElementById('searchUsername').value.trim();
+        if (!username) {
+            alert('请输入用户名');
+            return;
+        }
+
+        fetch('/admin/user/search?username=' + encodeURIComponent(username), {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code !== 200) {
+                    document.getElementById('tip').innerText = '搜索失败：' + data.msg;
+                    return;
+                }
+                renderUsers(data.data);
+                document.getElementById('pagination').style.display = 'none';
+                document.getElementById('tip').innerText = '搜索完成';
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+            });
+    }
+
+    // 重置搜索，回到分页列表
+    function resetSearch() {
+        document.getElementById('searchUsername').value = '';
+        loadUsers(1);
+    }
+
+    // 渲染用户表格
+    function renderUsers(list) {
+        const tbody = document.getElementById('userTableBody');
+        tbody.innerHTML = '';
+
+        if (!list || list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">暂无数据</td></tr>';
+            return;
+        }
+
+        for (let i = 0; i < list.length; i++) {
+            const user = list[i];
+            const statusText = user.status === 0 ? '禁用' : '启用';
+            const statusButton = user.status === 0
+                ? '<button onclick="enableUser(' + user.id + ')">启用</button>'
+                : '<button onclick="disableUser(' + user.id + ')">禁用</button>';
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>' + user.id + '</td>' +
+                '<td>' + user.username + '</td>' +
+                '<td>' + (user.email || '') + '</td>' +
+                '<td>' + user.role + '</td>' +
+                '<td>' + statusText + '</td>' +
+                '<td>' + (user.createTime || '') + '</td>' +
+                '<td class="actions">' +
+                '<button onclick="editUser(' + user.id + ', \'' + user.username + '\', \'' + (user.email || '') + '\')">编辑</button>' +
+                '<button onclick="deleteUser(' + user.id + ')">删除</button>' +
+                '<button onclick="resetPassword(' + user.id + ')">重置密码</button>' +
+                statusButton +
+                '</td>';
+            tbody.appendChild(tr);
+        }
+    }
+
+    // 启用用户
+    function enableUser(id) {
+        updateUserStatus(id, 1);
+    }
+
+    // 禁用用户
+    function disableUser(id) {
+        updateUserStatus(id, 0);
+    }
+
+    // 修改用户状态
+    function updateUserStatus(id, status) {
+        fetch('/admin/user/updateStatus?id=' + id + '&status=' + status, {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    alert('操作成功');
+                    loadUsers(currentPage);
+                } else {
+                    alert('操作失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 删除用户
+    function deleteUser(id) {
+        if (!confirm('确定要删除 ID 为 ' + id + ' 的用户吗？')) {
+            return;
+        }
+
+        fetch('/admin/user/' + id, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    alert('删除成功');
+                    loadUsers(currentPage);
+                } else {
+                    alert('删除失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 重置用户密码
+    function resetPassword(id) {
+        if (!confirm('确定要重置 ID 为 ' + id + ' 的用户的密码吗？')) {
+            return;
+        }
+
+        fetch('/admin/user/resetPassword?id=' + id, {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    alert(data.data);  // 后端返回 "密码已重置为：123456"
+                } else {
+                    alert('重置失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 显示编辑表单
+    function editUser(id, username, email) {
+        document.getElementById('editId').value = id;
+        document.getElementById('editUsername').value = username;
+        document.getElementById('editEmail').value = email;
+        document.getElementById('editForm').style.display = 'block';
+    }
+
+    // 取消编辑
+    function cancelEdit() {
+        document.getElementById('editForm').style.display = 'none';
+    }
+
+    // 更新用户信息
+    function updateUser() {
+        const id = document.getElementById('editId').value;
+        const username = document.getElementById('editUsername').value.trim();
+        const email = document.getElementById('editEmail').value.trim();
+
+        if (!username) {
+            alert('用户名不能为空');
+            return;
+        }
+
+        fetch('/admin/user/update?id=' + id + '&username=' + encodeURIComponent(username) + '&email=' + encodeURIComponent(email), {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    alert('更新成功');
+                    cancelEdit();
+                    loadUsers(currentPage);
+                } else {
+                    alert('更新失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 统一处理响应：如果状态码不是 200，抛出错误信息
+    function handleResponse(response) {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(text || '请求失败，状态码：' + response.status);
+            });
+        }
+        return response.json();
+    }
+
+    // 退出登录
+    function logout() {
+        localStorage.removeItem('token');
+        alert('已退出登录');
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>

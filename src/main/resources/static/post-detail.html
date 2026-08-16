@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>帖子详情</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .nav {
+            margin: 15px 0;
+        }
+        .nav a, .nav button {
+            margin-right: 10px;
+        }
+        .post-box {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .post-title {
+            font-weight: bold;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        .post-content {
+            color: #333;
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        .post-meta {
+            color: #666;
+            font-size: 12px;
+        }
+        .comment-section {
+            margin-top: 25px;
+        }
+        .comment-section h3 {
+            margin-bottom: 15px;
+        }
+        .comment-form {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .comment-form textarea {
+            width: 100%;
+            height: 80px;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        .comment-form button {
+            margin-top: 10px;
+            padding: 8px 15px;
+            cursor: pointer;
+        }
+        .comment-item {
+            border: 1px solid #eee;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .comment-content {
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .comment-meta {
+            color: #666;
+            font-size: 12px;
+        }
+        .comment-actions button {
+            margin-left: 10px;
+            cursor: pointer;
+        }
+        #tip {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<h2>帖子详情</h2>
+
+<div class="nav">
+    <button onclick="logout()">退出登录</button>
+    <a href="posts.html">返回帖子广场</a>
+    <a href="post.html">去发帖</a>
+    <a href="my-posts.html">我的帖子</a>
+    <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
+    <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
+</div>
+
+<p id="tip"></p>
+
+<div id="postBox" class="post-box" style="display:none;">
+    <div class="post-title" id="postTitle"></div>
+    <div class="post-content" id="postContent"></div>
+    <div class="post-meta" id="postMeta"></div>
+    <div class="like-box" id="likeBox" style="margin-top: 15px;">
+        <span id="likeCountText">点赞：0</span>
+        <button id="likeBtn" onclick="toggleLike()" style="margin-left: 10px; display: none;">点赞</button>
+    </div>
+</div>
+
+<div class="comment-section">
+    <h3>评论列表</h3>
+
+    <div class="comment-form" id="commentForm">
+        <p>发表评论：</p>
+        <textarea id="commentContent" placeholder="写下你的评论..."></textarea>
+        <br>
+        <button onclick="submitComment()">提交评论</button>
+    </div>
+
+    <div id="commentList">
+        <!-- 评论数据会填充到这里 -->
+    </div>
+</div>
+
+<script>
+    const token = localStorage.getItem('token');
+    const currentUsername = token ? getUsernameFromToken(token) : null;
+    const currentRole = token ? getRoleFromToken(token) : null;
+    let hasLiked = false;
+    let replyingToId = null;
+
+    // 未登录时隐藏评论表单
+    if (!token) {
+        document.getElementById('commentForm').style.display = 'none';
+    }
+
+    // 从 URL 参数中获取帖子 ID
+    const urlParams = new URLSearchParams(window.location.search);
+    const postId = urlParams.get('id');
+
+    if (!postId) {
+        document.getElementById('tip').innerText = '缺少帖子 ID';
+    } else {
+        loadPostDetail();
+        loadComments();
+        if (token) {
+            loadLikeStatus();
+        }
+    }
+
+    showAdminLinks();
+
+    function showAdminLinks() {
+        if (currentRole === 'ADMIN') {
+            document.getElementById('adminLink').style.display = 'inline';
+            document.getElementById('adminPostsLink').style.display = 'inline';
+        }
+    }
+
+    function getUsernameFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).username;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function getRoleFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // 加载帖子详情
+    function loadPostDetail() {
+        fetch('/post/' + postId)
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code !== 200) {
+                    document.getElementById('tip').innerText = '帖子加载失败：' + data.msg;
+                    return;
+                }
+
+                const post = data.data;
+                document.getElementById('postTitle').innerText = post.title;
+                document.getElementById('postContent').innerText = post.content;
+                document.getElementById('postMeta').innerText =
+                    '作者：' + (post.username || '') +
+                    ' | 小区ID：' + (post.communityId || '') +
+                    ' | 评分：' + (post.rating || 0) +
+                    ' | 发布时间：' + (post.createTime || '');
+                document.getElementById('likeCountText').innerText = '点赞：' + (post.likeCount || 0);
+                document.getElementById('postBox').style.display = 'block';
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+            });
+    }
+
+    // 加载当前用户的点赞状态
+    function loadLikeStatus() {
+        fetch('/postLike/hasLiked?postId=' + postId, {
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    hasLiked = data.data;
+                    updateLikeButton();
+                }
+            })
+            .catch(error => {
+                console.log('获取点赞状态失败：' + error);
+            });
+    }
+
+    // 切换点赞/取消点赞
+    function toggleLike() {
+        if (!token) {
+            alert('请先登录');
+            return;
+        }
+
+        const url = hasLiked ? '/postLike/unlike?postId=' + postId : '/postLike/like?postId=' + postId;
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    hasLiked = !hasLiked;
+                    updateLikeButton();
+                    refreshLikeCount();
+                } else {
+                    alert(data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 更新点赞按钮文字和显示
+    function updateLikeButton() {
+        const btn = document.getElementById('likeBtn');
+        btn.style.display = 'inline';
+        btn.innerText = hasLiked ? '取消点赞' : '点赞';
+    }
+
+    // 刷新点赞数显示
+    function refreshLikeCount() {
+        fetch('/postLike/count?postId=' + postId)
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    document.getElementById('likeCountText').innerText = '点赞：' + (data.data || 0);
+                }
+            })
+            .catch(error => {
+                console.log('刷新点赞数失败：' + error);
+            });
+    }
+
+    // 加载评论列表
+    function loadComments() {
+        fetch('/comment/list?postId=' + postId + '&pageNum=1&pageSize=100')
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code !== 200) {
+                    document.getElementById('tip').innerText = '评论加载失败：' + data.msg;
+                    return;
+                }
+
+                renderComments(data.data.list);
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+            });
+    }
+
+    // 渲染评论列表（树形：一级评论 + 回复）
+    function renderComments(list) {
+        const container = document.getElementById('commentList');
+        container.innerHTML = '';
+
+        if (!list || list.length === 0) {
+            container.innerHTML = '<p>暂无评论，快来抢沙发吧~</p>';
+            return;
+        }
+
+        // 一级评论：parentId 为 null
+        const topComments = list.filter(c => !c.parentId);
+
+        if (topComments.length === 0) {
+            container.innerHTML = '<p>暂无评论</p>';
+            return;
+        }
+
+        for (let i = 0; i < topComments.length; i++) {
+            const comment = topComments[i];
+            container.appendChild(createCommentElement(comment, false));
+
+            // 查找并显示该评论的回复
+            const replies = list.filter(c => c.parentId === comment.id);
+            for (let j = 0; j < replies.length; j++) {
+                container.appendChild(createCommentElement(replies[j], true));
+            }
+        }
+    }
+
+    // 创建单条评论/回复的 DOM 元素
+    function createCommentElement(comment, isReply) {
+        const div = document.createElement('div');
+        div.className = isReply ? 'comment-item reply-item' : 'comment-item';
+        div.id = 'comment-' + comment.id;
+        if (isReply) {
+            div.style.marginLeft = '40px';
+            div.style.backgroundColor = '#f9f9f9';
+        }
+
+        // 删除按钮
+        let deleteButton = '';
+        if (currentUsername === comment.username || currentRole === 'ADMIN') {
+            deleteButton = '<button onclick="deleteComment(' + comment.id + ')">删除</button>';
+        }
+
+        // 回复按钮（只对一级评论显示）
+        let replyButton = '';
+        if (token && !isReply) {
+            replyButton = '<button onclick="showReplyBox(' + comment.id + ')">回复</button>';
+        }
+
+        div.innerHTML =
+            '<div class="comment-content">' + comment.content + '</div>' +
+            '<div class="comment-meta">' +
+            (isReply ? '回复者：' : '评论者：') + (comment.username || '') +
+            ' | 时间：' + (comment.createTime || '') +
+            '<span class="comment-actions">' + replyButton + deleteButton + '</span>' +
+            '</div>' +
+            '<div class="reply-box" id="reply-box-' + comment.id + '" style="display:none; margin-top:10px;">' +
+            '<textarea id="reply-content-' + comment.id + '" placeholder="回复 ' + comment.username + '..." style="width:100%;height:60px;"></textarea>' +
+            '<button onclick="submitReply(' + comment.id + ')">提交回复</button>' +
+            '<button onclick="cancelReply(' + comment.id + ')">取消</button>' +
+            '</div>';
+
+        return div;
+    }
+
+    // 显示回复输入框
+    function showReplyBox(commentId) {
+        document.querySelectorAll('.reply-box').forEach(box => box.style.display = 'none');
+        document.getElementById('reply-box-' + commentId).style.display = 'block';
+        replyingToId = commentId;
+    }
+
+    // 隐藏回复输入框
+    function cancelReply(commentId) {
+        document.getElementById('reply-box-' + commentId).style.display = 'none';
+        document.getElementById('reply-content-' + commentId).value = '';
+        replyingToId = null;
+    }
+
+    // 提交回复
+    function submitReply(parentId) {
+        const content = document.getElementById('reply-content-' + parentId).value.trim();
+        if (!content) {
+            alert('回复内容不能为空');
+            return;
+        }
+        submitCommentContent(content, parentId);
+    }
+
+    // 提交一级评论
+    function submitComment() {
+        const content = document.getElementById('commentContent').value.trim();
+        if (!content) {
+            alert('评论内容不能为空');
+            return;
+        }
+        submitCommentContent(content, null);
+    }
+
+    // 统一提交评论/回复
+    function submitCommentContent(content, parentId) {
+        if (!token) {
+            alert('请先登录');
+            return;
+        }
+
+        const params = new URLSearchParams({
+            postId: postId,
+            content: content
+        });
+        if (parentId) {
+            params.append('parentId', parentId);
+        }
+
+        fetch('/comment/add', {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            },
+            body: params
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    alert(parentId ? '回复成功' : '评论成功');
+                    document.getElementById('commentContent').value = '';
+                    if (parentId) {
+                        cancelReply(parentId);
+                    }
+                    loadComments();
+                } else {
+                    alert((parentId ? '回复' : '评论') + '失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 删除评论
+    function deleteComment(id) {
+        if (!confirm('确定要删除这条评论吗？')) {
+            return;
+        }
+
+        fetch('/comment/delete?id=' + id, {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    alert('删除成功');
+                    loadComments();
+                } else {
+                    alert('删除失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 统一处理响应
+    function handleResponse(response) {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(text || '请求失败，状态码：' + response.status);
+            });
+        }
+        return response.json();
+    }
+
+    // 退出登录
+    function logout() {
+        localStorage.removeItem('token');
+        alert('已退出登录');
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>

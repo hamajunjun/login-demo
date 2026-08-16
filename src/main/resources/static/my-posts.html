@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>我的帖子</title>
+    <style>
+        .post-item {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .post-title {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .post-meta {
+            color: #666;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+<h2>我的帖子</h2>
+
+<p>
+    <button onclick="logout()">退出登录</button>
+    <button onclick="deleteMyAccount()">注销账号</button>
+    <a href="posts.html">帖子广场</a>
+    <a href="post.html">去发帖</a>
+    <a href="community.html">添加小区</a>
+    <a href="profile.html">个人中心</a>
+    <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
+    <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
+</p>
+
+<p id="tip"></p>
+<div id="postList"></div>
+
+<script>
+    // 页面加载时自动查询
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+        document.getElementById('tip').innerText = '未登录，请先登录';
+    } else {
+        loadMyPosts();
+    }
+
+    showAdminLink();
+
+    function showAdminLink() {
+        const role = getRoleFromToken(token);
+        if (role === 'ADMIN') {
+            document.getElementById('adminLink').style.display = 'inline';
+            document.getElementById('adminPostsLink').style.display = 'inline';
+        }
+    }
+
+    function getRoleFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function loadMyPosts() {
+        fetch('/post/myList?pageNum=1&pageSize=10', {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code !== 200) {
+                    document.getElementById('tip').innerText = '查询失败：' + data.msg;
+                    return;
+                }
+
+                const pageInfo = data.data;
+                const list = pageInfo.list;
+
+                if (list.length === 0) {
+                    document.getElementById('tip').innerText = '你还没有发过帖子';
+                    return;
+                }
+
+                document.getElementById('tip').innerText = '共 ' + pageInfo.total + ' 条帖子';
+
+                let html = '';
+                for (let i = 0; i < list.length; i++) {
+                    const post = list[i];
+                    html += '<div class="post-item">';
+                    html += '<div class="post-title"><a href="post-detail.html?id=' + post.id + '">' + post.title + '</a></div>';
+                    html += '<div>' + post.content + '</div>';
+                    html += '<div class="post-meta">评分：' + post.rating + ' 分 | 点赞：' + (post.likeCount || 0) + ' | 发布时间：' + post.createTime + '</div>';
+                    html += '</div>';
+                }
+
+                document.getElementById('postList').innerHTML = html;
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+            });
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        alert('已退出登录');
+        window.location.href = 'login.html';
+    }
+
+    function deleteMyAccount() {
+        // 先弹窗确认，防止误操作
+        if (!confirm('确定要注销账号吗？此操作不可恢复！')) {
+            return;
+        }
+
+        fetch('/user/deleteMyAccount', {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    // 删除成功后，清除本地 token 并跳回登录页
+                    localStorage.removeItem('token');
+                    alert('账号已注销');
+                    window.location.href = 'login.html';
+                } else {
+                    alert('注销失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+</script>
+</body>
+</html>

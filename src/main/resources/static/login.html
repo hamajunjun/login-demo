@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>登录</title>
+</head>
+<body>
+<h2>登录</h2>
+
+<p>用户名：<input type="text" id="username"></p>
+<p>密码：<input type="password" id="password"></p>
+<p><button onclick="login()">登录</button></p>
+
+<p id="result"></p>
+<p>还没有账号？<a href="register.html">点这里注册</a></p>
+
+<script>
+  function login() {
+    // 1. 获取输入框的值
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+
+    // 2. 发送登录请求
+    fetch('/user/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        username: username,
+        password: password
+      })
+    })
+            .then(response => response.json())
+            .then(data => {
+              // 3. 判断登录是否成功
+              if (data.code === 200) {
+                // 4. 把 token 存到浏览器本地
+                localStorage.setItem('token', data.data);
+                document.getElementById('result').innerText = '登录成功，正在跳转...';
+                // 5. 跳转到发帖页面
+                window.location.href = 'post.html';
+              } else {
+                document.getElementById('result').innerText = '登录失败：' + data.msg;
+              }
+            })
+            .catch(error => {
+              document.getElementById('result').innerText = '请求失败：' + error;
+            });
+  }
+</script>
+</body>
+</html>

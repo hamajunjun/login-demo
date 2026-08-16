@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>发布评价</title>
+</head>
+<body>
+<h2>发布房产评价</h2>
+
+<p>
+    <button onclick="logout()">退出登录</button>
+    <a href="posts.html">帖子广场</a>
+    <a href="my-posts.html">我的帖子</a>
+    <a href="profile.html">个人中心</a>
+    <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
+    <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
+</p>
+
+<p>Token：<input type="text" id="token" style="width: 300px;" readonly></p>
+<p id="tokenTip"></p>
+
+<p>标题：<input type="text" id="title"></p>
+<p>内容：<textarea id="content" rows="5" cols="30"></textarea></p>
+<p>评分：
+    <select id="rating">
+        <option value="1">1分</option>
+        <option value="2">2分</option>
+        <option value="3">3分</option>
+        <option value="4">4分</option>
+        <option value="5" selected>5分</option>
+    </select>
+</p>
+<p>小区ID：<input type="text" id="communityId"></p>
+<p><button onclick="submitPost()">提交评价</button></p>
+
+<p id="result"></p>
+
+<script>
+    // 页面加载时，自动从 localStorage 读取 token
+    const token = localStorage.getItem('token');
+    if (token) {
+        document.getElementById('token').value = token;
+        document.getElementById('tokenTip').innerText = '已自动读取登录 token';
+    } else {
+        document.getElementById('tokenTip').innerText = '未登录，请先登录';
+    }
+
+    showAdminLink();
+
+    function showAdminLink() {
+        const role = getRoleFromToken(token);
+        if (role === 'ADMIN') {
+            document.getElementById('adminLink').style.display = 'inline';
+            document.getElementById('adminPostsLink').style.display = 'inline';
+        }
+    }
+
+    function getRoleFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        alert('已退出登录');
+        window.location.href = 'login.html';
+    }
+
+    function submitPost() {
+        const title = document.getElementById('title').value;
+        const content = document.getElementById('content').value;
+        const rating = document.getElementById('rating').value;
+        const communityId = document.getElementById('communityId').value;
+
+        fetch('/post/create', {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            },
+            body: new URLSearchParams({
+                title: title,
+                content: content,
+                rating: rating,
+                communityId: communityId
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').innerText = JSON.stringify(data);
+            })
+            .catch(error => {
+                document.getElementById('result').innerText = '请求失败：' + error;
+            });
+    }
+</script>
+</body>
+</html>

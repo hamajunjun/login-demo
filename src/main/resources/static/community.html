@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>添加小区</title>
+</head>
+<body>
+<h2>添加小区</h2>
+
+<p>
+    <button onclick="logout()">退出登录</button>
+    <a href="posts.html">帖子广场</a>
+    <a href="my-posts.html">我的帖子</a>
+    <a href="profile.html">个人中心</a>
+    <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
+    <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
+</p>
+
+<p>小区名称：<input type="text" id="name"></p>
+<p>城市：<input type="text" id="city"></p>
+<p>区域：<input type="text" id="district"></p>
+<p>地址：<input type="text" id="address"></p>
+<p>价格：<input type="text" id="price"></p>
+<p><button onclick="addCommunity()">添加小区</button></p>
+
+<p id="result"></p>
+
+<script>
+    showAdminLink();
+
+    function showAdminLink() {
+        const token = localStorage.getItem('token');
+        const role = getRoleFromToken(token);
+        if (role === 'ADMIN') {
+            document.getElementById('adminLink').style.display = 'inline';
+            document.getElementById('adminPostsLink').style.display = 'inline';
+        }
+    }
+
+    function getRoleFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        alert('已退出登录');
+        window.location.href = 'login.html';
+    }
+
+    function addCommunity() {
+        const name = document.getElementById('name').value;
+        const city = document.getElementById('city').value;
+        const district = document.getElementById('district').value;
+        const address = document.getElementById('address').value;
+        const price = document.getElementById('price').value;
+
+        fetch('/community/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name,
+                city: city,
+                district: district,
+                address: address,
+                price: price
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').innerText = JSON.stringify(data);
+            })
+            .catch(error => {
+                document.getElementById('result').innerText = '请求失败：' + error;
+            });
+    }
+</script>
+</body>
+</html>

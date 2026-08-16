@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>帖子广场</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .nav {
+            margin: 15px 0;
+        }
+        .nav a, .nav button {
+            margin-right: 10px;
+        }
+        .post-item {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .post-title {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        .post-title a {
+            color: #333;
+            text-decoration: none;
+        }
+        .post-title a:hover {
+            color: #0066cc;
+            text-decoration: underline;
+        }
+        .post-content {
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .post-meta {
+            color: #666;
+            font-size: 12px;
+        }
+        .pagination {
+            margin-top: 15px;
+        }
+        .pagination button {
+            margin-right: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        #tip {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<h2>帖子广场</h2>
+
+<div class="nav">
+    <button onclick="logout()">退出登录</button>
+    <a href="post.html">去发帖</a>
+    <a href="my-posts.html">我的帖子</a>
+    <a href="community.html">添加小区</a>
+    <a href="profile.html">个人中心</a>
+    <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
+    <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
+</div>
+
+<p id="tip"></p>
+
+<div class="search-box" style="margin: 15px 0;">
+    <input type="text" id="searchInput" placeholder="请输入关键词搜索帖子" style="padding: 5px; width: 250px;">
+    <button onclick="searchPosts()" style="padding: 5px 10px;">搜索</button>
+    <button onclick="clearSearch()" style="padding: 5px 10px;">清空</button>
+</div>
+
+<div id="postList">
+    <!-- 帖子数据会填充到这里 -->
+</div>
+
+<div class="pagination" id="pagination" style="display: none;">
+    <button onclick="loadPosts(1)">首页</button>
+    <button onclick="loadPosts(currentPage - 1)">上一页</button>
+    <span id="pageInfoText"></span>
+    <button onclick="loadPosts(currentPage + 1)">下一页</button>
+    <button onclick="loadPosts(totalPages)">末页</button>
+</div>
+
+<script>
+    const token = localStorage.getItem('token');
+    let currentPage = 1;
+    let totalPages = 1;
+    let searchKeyword = '';
+
+    showAdminLinks();
+    loadPosts(1);
+
+    function showAdminLinks() {
+        const role = getRoleFromToken(token);
+        if (role === 'ADMIN') {
+            document.getElementById('adminLink').style.display = 'inline';
+            document.getElementById('adminPostsLink').style.display = 'inline';
+        }
+    }
+
+    function getRoleFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function searchPosts() {
+        const keyword = document.getElementById('searchInput').value.trim();
+        if (!keyword) {
+            alert('请输入搜索关键词');
+            return;
+        }
+        searchKeyword = keyword;
+        loadPosts(1);
+    }
+
+    function clearSearch() {
+        document.getElementById('searchInput').value = '';
+        searchKeyword = '';
+        loadPosts(1);
+    }
+
+    function loadPosts(pageNum) {
+        if (pageNum < 1) pageNum = 1;
+        currentPage = pageNum;
+
+        let url;
+        if (searchKeyword) {
+            url = '/post/search?keyword=' + encodeURIComponent(searchKeyword) + '&pageNum=' + pageNum + '&pageSize=10';
+        } else {
+            url = '/post/list?pageNum=' + pageNum + '&pageSize=10';
+        }
+
+        fetch(url)
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code !== 200) {
+                    document.getElementById('tip').innerText = '查询失败：' + data.msg;
+                    return;
+                }
+
+                const pageInfo = data.data;
+                totalPages = pageInfo.pages || 1;
+                renderPosts(pageInfo.list);
+                document.getElementById('pagination').style.display = 'block';
+                document.getElementById('pageInfoText').innerText =
+                    ' 第 ' + pageInfo.pageNum + ' / ' + totalPages + ' 页，共 ' + pageInfo.total + ' 条 ';
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+            });
+    }
+
+    function renderPosts(list) {
+        const container = document.getElementById('postList');
+        container.innerHTML = '';
+
+        if (!list || list.length === 0) {
+            container.innerHTML = '<p>暂无帖子</p>';
+            return;
+        }
+
+        for (let i = 0; i < list.length; i++) {
+            const post = list[i];
+            const div = document.createElement('div');
+            div.className = 'post-item';
+            div.innerHTML =
+                '<div class="post-title"><a href="post-detail.html?id=' + post.id + '">' + post.title + '</a></div>' +
+                '<div class="post-content">' + post.content + '</div>' +
+                '<div class="post-meta">' +
+                '作者：' + (post.username || '') +
+                ' | 小区ID：' + (post.communityId || '') +
+                ' | 评分：' + (post.rating || 0) +
+                ' | 点赞：' + (post.likeCount || 0) +
+                ' | 发布时间：' + (post.createTime || '') +
+                '</div>';
+            container.appendChild(div);
+        }
+    }
+
+    function handleResponse(response) {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(text || '请求失败，状态码：' + response.status);
+            });
+        }
+        return response.json();
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        alert('已退出登录');
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>
