@@ -82,6 +82,6 @@ public class PostFavoriteServiceImpl implements PostFavoriteService{
                 postList.add(post);
             }
         }
-        return new PageInfo<>(postList);
+        return new PageInfo<>(postList);//
     }
 }
