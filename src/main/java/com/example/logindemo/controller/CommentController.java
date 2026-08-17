@@ -7,11 +7,14 @@ import com.example.logindemo.service.CommentService;
 import com.example.logindemo.service.UserService;
 import com.example.logindemo.util.JwtUtil;
 import com.github.pagehelper.PageInfo;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/comment")
+@Tag(name = "评论模块", description = "帖子评论、回复、删除相关接口")
 public class CommentController {
 
     @Autowired
@@ -21,6 +24,7 @@ public class CommentController {
     private UserService userService;
 
     // 发表评论
+    @Operation(summary = "发表评论", description = "当前登录用户对指定帖子发表评论或回复其他评论")
     @PostMapping("/add")
     public Result<String> add(@RequestHeader("Authorization") String token,
                               @RequestParam Long postId,
@@ -40,6 +44,7 @@ public class CommentController {
     }
 
     // 查询某个帖子的评论列表（公开接口）
+    @Operation(summary = "查询评论列表", description = "根据帖子ID分页查询该帖子下的评论列表")
     @GetMapping("/list")
     public Result<PageInfo<Comment>> list(@RequestParam Long postId,
                                           @RequestParam(defaultValue = "1") int pageNum,
@@ -49,6 +54,7 @@ public class CommentController {
     }
 
     // 删除评论
+    @Operation(summary = "删除评论", description = "当前登录用户或管理员删除指定评论")
     @PostMapping("/delete")
     public Result<String> delete(@RequestHeader("Authorization") String token,
                                  @RequestParam Long id) {

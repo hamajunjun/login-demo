@@ -28,7 +28,13 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/post/listByCommunity")
                 .excludePathPatterns("/community/list")
                 .excludePathPatterns("/*.html")
-                .excludePathPatterns("/comment/list");
+                .excludePathPatterns("/comment/list")
+                .excludePathPatterns("/doc.html")
+                .excludePathPatterns("/webjars/**")
+                .excludePathPatterns("/v3/api-docs/**")
+                .excludePathPatterns("/swagger-ui/**")
+                .excludePathPatterns("/swagger-ui.html")
+                .excludePathPatterns("/favicon.ico");
 
         registry.addInterceptor(adminInterceptor)
                 .addPathPatterns("/admin/**");
