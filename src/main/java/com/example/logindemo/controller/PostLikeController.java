@@ -23,7 +23,7 @@ public class PostLikeController {
 
     @Operation(summary = "点赞帖子", description = "当前登录用户对指定帖子点赞")
     @PostMapping("/like")
-    public Result<String> like(@RequestHeader("Authorizaton") String token,
+    public Result<String> like(@RequestHeader("Authorization") String token,
                                @RequestParam Long postId){
         String username=JwtUtil.getUsername(token);
         User user=userService.findByUsername(username);
@@ -42,7 +42,7 @@ public class PostLikeController {
     public Result<String> unlike(@RequestHeader("Authorization") String token,
                                  @RequestParam Long postId){
         String username = JwtUtil.getUsername(token);
-        User user=userService.findByUsername(token);
+        User user=userService.findByUsername(username);
         if(user==null){
             return Result.error("用户不存在");
         }
