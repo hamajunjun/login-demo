@@ -28,6 +28,34 @@ public class NotificationServiceImpl implements NotificationService{
         List<Notification> list=notificationMapper.findByUserId(user.getId());
         return new PageInfo<>(list);
     }
+
+    @Override
+    public boolean sendNotification(Long userId,String type,String content){
+        if(userId==null || type==null || type.trim().isEmpty() || content==null || content.trim().isEmpty()){
+            return false;
+        }
+        Notification notification = new Notification();
+        notification.setUserId(userId);
+        notification.setType(type);
+        notification.setContent(content.trim());
+
+        return notificationMapper.insert(notification)>0;
+    }
+
+    @Override
+    public boolean markRead(String token,Long notificationId){
+        if(notificationId==null){
+            return false;
+        }
+        User user=getCurrentUser(token);
+        return notificationMapper.markRead(notificationId,user.getId())>0;
+    }
+
+    @Override
+    public int countUnread(String token){
+        User user=getCurrentUser(token);
+        return notificationMapper.countUnread(user.getId());
+    }
     private User getCurrentUser(String token){
         String username=JwtUtil.getUsername(token);
         User user=userMapper.findByUsername(username);

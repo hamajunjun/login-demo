@@ -8,4 +8,16 @@ public interface NotificationService {
      * 查询我的通知列表
      */
     PageInfo<Notification> listMyNotification(String token,int pageNum,int pageSize);
+    /**
+     * 发送一条通知
+     */
+    boolean sendNotification(Long userId,String type,String content);
+    /**
+     * 标记通知为已读
+     */
+    boolean markRead(String token,Long notificationId);
+    /**
+     * 查询未读通知数
+     */
+    int countUnread(String token);
 }

@@ -1,7 +1,9 @@
 package com.example.logindemo.service;
 
+import com.example.logindemo.entity.Post;
 import com.example.logindemo.entity.PostLike;
 import com.example.logindemo.mapper.PostLikeMapper;
+import com.example.logindemo.mapper.PostMapper;
 import com.example.logindemo.util.RedisUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,12 @@ public class PostLikeServiceImpl implements PostLikeService{
 
     @Autowired
     private RedisUtil redisUtil;
+
+    @Autowired
+    private PostMapper postMapper;
+
+    @Autowired
+    private NotificationService notificationService;
 
     @Override
     public boolean like(Long postId, Long userId){
@@ -30,6 +38,15 @@ public class PostLikeServiceImpl implements PostLikeService{
         boolean success=postLikeMapper.insert(postLike)>0;
         if(success){
             redisUtil.delete("post:detail:"+postId);
+            //通知帖子作者
+            Post post=postMapper.findById(postId);
+            if(post !=null && !post.getUserId().equals(userId)){
+                notificationService.sendNotification(
+                        post.getUserId(),
+                        "LIKE",
+                        "有人赞了你的帖子《" + post.getTitle() + "》"
+                );
+            }
         }
         return success;
     }

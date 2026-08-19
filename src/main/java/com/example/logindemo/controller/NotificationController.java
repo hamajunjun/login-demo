@@ -23,4 +23,22 @@ public class NotificationController {
                                                  @RequestParam(defaultValue="10") int pageSize){
         return Result.success(notificationService.listMyNotification(token,pageNum,pageSize));
     }
+
+    @Operation(summary = "标记通知已读", description = "将指定通知标记为已读，只能标记自己的通知")
+    @PostMapping("/markRead")
+    public Result<String> markRead(@RequestHeader("Authorization") String token,
+                                   @RequestParam Long id){
+        boolean success= notificationService.markRead(token,id);
+        if (success) {
+            return Result.success("标记已读成功");
+        } else {
+            return Result.error("标记失败，通知不存在或无权限");
+        }
+    }
+    @Operation(summary = "未读通知数", description = "查询当前登录用户的未读通知数量")
+    @GetMapping("/unreadCount")
+    public Result<Integer> unreadCount(@RequestHeader("Authorization") String token) {
+        int count = notificationService.countUnread(token);
+        return Result.success(count);
+    }
 }
