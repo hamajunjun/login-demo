@@ -129,6 +129,13 @@ public class PostController {
         PageInfo<Post> pageInfo=postService.findByKeyword(keyword,pageNum,pageSize);
         return Result.success(pageInfo);
     }
+    @Operation(summary= "热门帖子列表",description = "按浏览量倒序分页查询热门帖子")
+    @GetMapping("/hostList")
+    public Result<PageInfo<Post>> hotList(@RequestParam(defaultValue = "1") int pageNum,
+                                          @RequestParam(defaultValue = "10") int pageSize){
+        PageInfo<Post> pageInfo=postService.getHotList(pageNum,pageSize);
+        return Result.success(pageInfo);
+    }
 }
 
 

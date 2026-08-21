@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>用户主页</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .nav {
+            margin: 15px 0;
+        }
+        .nav a, .nav button {
+            margin-right: 10px;
+        }
+        .profile-box {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 5px;
+            max-width: 500px;
+        }
+        .info-row {
+            margin: 8px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        .actions {
+            margin-top: 15px;
+        }
+        .actions button {
+            padding: 8px 15px;
+            cursor: pointer;
+        }
+        #tip {
+            color: red;
+            margin-top: 10px;
+        }
+        .badge {
+            display: inline-block;
+            background-color: #ff4444;
+            color: white;
+            border-radius: 10px;
+            padding: 0 6px;
+            font-size: 12px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        .badge:empty {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<h2>用户主页</h2>
+
+<div class="nav">
+    <button onclick="logout()">退出登录</button>
+    <a href="posts.html">帖子广场</a>
+    <a href="post.html">去发帖</a>
+    <a href="hot.html">热门帖子</a>
+    <a href="my-posts.html">我的帖子</a>
+    <a href="communities.html">小区列表</a>
+    <a href="my-favorites.html">我的收藏</a>
+    <a href="my-follows.html">我的关注</a>
+    <a href="profile.html">个人中心</a>
+    <a href="notifications.html">消息中心<span id="unreadBadge" class="badge"></span></a>
+    <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
+    <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
+</div>
+
+<p id="tip"></p>
+
+<div class="profile-box" id="profileBox" style="display:none;">
+    <div class="info-row">用户名：<span id="username"></span></div>
+    <div class="actions">
+        <button id="followBtn" onclick="toggleFollow()" style="display:none;">关注</button>
+    </div>
+</div>
+
+<script>
+    const token = localStorage.getItem('token');
+    let isFollowing = false;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('id');
+    const username = urlParams.get('username');
+
+    if (!userId) {
+        document.getElementById('tip').innerText = '缺少用户 ID';
+    } else {
+        document.getElementById('username').innerText = username || '';
+        document.getElementById('profileBox').style.display = 'block';
+        showAdminLinks();
+        loadUnreadCount();
+        if (token) {
+            loadFollowStatus();
+        }
+    }
+
+    function showAdminLinks() {
+        const role = getRoleFromToken(token);
+        if (role === 'ADMIN') {
+            document.getElementById('adminLink').style.display = 'inline';
+            document.getElementById('adminPostsLink').style.display = 'inline';
+        }
+    }
+
+    function getRoleFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function loadUnreadCount() {
+        if (!token) return;
+        fetch('/notification/unreadCount', {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200 && data.data > 0) {
+                    document.getElementById('unreadBadge').innerText = data.data;
+                }
+            })
+            .catch(error => {
+                console.log('获取未读消息数失败：' + error);
+            });
+    }
+
+    function loadFollowStatus() {
+        fetch('/follow/isFollowing?followingId=' + userId, {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    isFollowing = data.data;
+                    updateFollowButton();
+                }
+            })
+            .catch(error => {
+                console.log('获取关注状态失败：' + error);
+            });
+    }
+
+    function updateFollowButton() {
+        const btn = document.getElementById('followBtn');
+        btn.style.display = 'inline';
+        btn.innerText = isFollowing ? '取消关注' : '关注';
+    }
+
+    function toggleFollow() {
+        if (!token) {
+            alert('请先登录');
+            return;
+        }
+
+        const url = isFollowing
+            ? '/follow/cancel?followingId=' + userId
+            : '/follow/add?followingId=' + userId;
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    isFollowing = !isFollowing;
+                    updateFollowButton();
+                    alert(data.data || '操作成功');
+                } else {
+                    alert('操作失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    function handleResponse(response) {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(text || '请求失败，状态码：' + response.status);
+            });
+        }
+        return response.json();
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        alert('已退出登录');
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>

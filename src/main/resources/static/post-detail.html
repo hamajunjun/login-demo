@@ -80,6 +80,26 @@
             color: red;
             margin-top: 10px;
         }
+        .badge {
+            display: inline-block;
+            background-color: #ff4444;
+            color: white;
+            border-radius: 10px;
+            padding: 0 6px;
+            font-size: 12px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        .badge:empty {
+            display: none;
+        }
+        .post-actions {
+            margin-top: 15px;
+        }
+        .post-actions button {
+            margin-right: 10px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -88,8 +108,15 @@
 <div class="nav">
     <button onclick="logout()">退出登录</button>
     <a href="posts.html">返回帖子广场</a>
+    <a href="hot.html">热门榜单</a>
     <a href="post.html">去发帖</a>
+    <a href="hot.html">热门帖子</a>
     <a href="my-posts.html">我的帖子</a>
+    <a href="communities.html">小区列表</a>
+    <a href="my-favorites.html">我的收藏</a>
+    <a href="my-follows.html">我的关注</a>
+    <a href="profile.html">个人中心</a>
+    <a href="notifications.html">消息中心<span id="unreadBadge" class="badge"></span></a>
     <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
     <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
 </div>
@@ -103,6 +130,11 @@
     <div class="like-box" id="likeBox" style="margin-top: 15px;">
         <span id="likeCountText">点赞：0</span>
         <button id="likeBtn" onclick="toggleLike()" style="margin-left: 10px; display: none;">点赞</button>
+    </div>
+    <div class="post-actions" id="postActions" style="display:none;">
+        <button id="favoriteBtn" onclick="toggleFavorite()" style="display:none;">收藏</button>
+        <button id="followBtn" onclick="toggleFollowAuthor()" style="display:none;">关注作者</button>
+        <a id="authorLink" href="" style="display:none;">查看作者主页</a>
     </div>
 </div>
 
@@ -126,6 +158,10 @@
     const currentUsername = token ? getUsernameFromToken(token) : null;
     const currentRole = token ? getRoleFromToken(token) : null;
     let hasLiked = false;
+    let hasFavorited = false;
+    let isFollowingAuthor = false;
+    let postAuthorId = null;
+    let postAuthorUsername = null;
     let replyingToId = null;
 
     // 未登录时隐藏评论表单
@@ -144,16 +180,38 @@
         loadComments();
         if (token) {
             loadLikeStatus();
+            loadFavoriteStatus();
         }
     }
 
     showAdminLinks();
+    loadUnreadCount();
 
     function showAdminLinks() {
         if (currentRole === 'ADMIN') {
             document.getElementById('adminLink').style.display = 'inline';
             document.getElementById('adminPostsLink').style.display = 'inline';
         }
+    }
+
+    // 加载未读消息数，显示在消息中心入口上
+    function loadUnreadCount() {
+        if (!token) return;
+        fetch('/notification/unreadCount', {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200 && data.data > 0) {
+                    document.getElementById('unreadBadge').innerText = data.data;
+                }
+            })
+            .catch(error => {
+                console.log('获取未读消息数失败：' + error);
+            });
     }
 
     function getUsernameFromToken(token) {
@@ -189,15 +247,26 @@
                 }
 
                 const post = data.data;
+                postAuthorId = post.userId;
+                postAuthorUsername = post.username;
+
                 document.getElementById('postTitle').innerText = post.title;
                 document.getElementById('postContent').innerText = post.content;
-                document.getElementById('postMeta').innerText =
-                    '作者：' + (post.username || '') +
+                document.getElementById('postMeta').innerHTML =
+                    '作者：<a href="user-profile.html?id=' + (post.userId || '') + '&username=' + encodeURIComponent(post.username || '') + '">' + (post.username || '') + '</a>' +
                     ' | 小区ID：' + (post.communityId || '') +
                     ' | 评分：' + (post.rating || 0) +
                     ' | 发布时间：' + (post.createTime || '');
                 document.getElementById('likeCountText').innerText = '点赞：' + (post.likeCount || 0);
                 document.getElementById('postBox').style.display = 'block';
+                document.getElementById('postActions').style.display = 'block';
+
+                if (token && postAuthorId && postAuthorUsername !== currentUsername) {
+                    loadFollowAuthorStatus();
+                }
+
+                updateFavoriteButton();
+                updateAuthorLink();
             })
             .catch(error => {
                 document.getElementById('tip').innerText = '请求失败：' + error;
@@ -271,6 +340,141 @@
             .catch(error => {
                 console.log('刷新点赞数失败：' + error);
             });
+    }
+
+    // 加载当前用户的收藏状态
+    function loadFavoriteStatus() {
+        fetch('/favorite/isFavorite?postId=' + postId, {
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    hasFavorited = data.data;
+                    updateFavoriteButton();
+                }
+            })
+            .catch(error => {
+                console.log('获取收藏状态失败：' + error);
+            });
+    }
+
+    // 切换收藏/取消收藏
+    function toggleFavorite() {
+        if (!token) {
+            alert('请先登录');
+            return;
+        }
+
+        const url = hasFavorited ? '/favorite/cancel?postId=' + postId : '/favorite/add?postId=' + postId;
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    hasFavorited = !hasFavorited;
+                    updateFavoriteButton();
+                    alert(data.data || '操作成功');
+                } else {
+                    alert('操作失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 更新收藏按钮
+    function updateFavoriteButton() {
+        const btn = document.getElementById('favoriteBtn');
+        if (!token) {
+            btn.style.display = 'none';
+            return;
+        }
+        btn.style.display = 'inline';
+        btn.innerText = hasFavorited ? '取消收藏' : '收藏';
+    }
+
+    // 加载当前用户对作者的关注状态
+    function loadFollowAuthorStatus() {
+        if (!postAuthorId) return;
+        fetch('/follow/isFollowing?followingId=' + postAuthorId, {
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    isFollowingAuthor = data.data;
+                    updateFollowAuthorButton();
+                }
+            })
+            .catch(error => {
+                console.log('获取关注状态失败：' + error);
+            });
+    }
+
+    // 切换关注/取消关注作者
+    function toggleFollowAuthor() {
+        if (!token) {
+            alert('请先登录');
+            return;
+        }
+        if (!postAuthorId) {
+            alert('无法获取作者信息');
+            return;
+        }
+
+        const url = isFollowingAuthor
+            ? '/follow/cancel?followingId=' + postAuthorId
+            : '/follow/add?followingId=' + postAuthorId;
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    isFollowingAuthor = !isFollowingAuthor;
+                    updateFollowAuthorButton();
+                    alert(data.data || '操作成功');
+                } else {
+                    alert('操作失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 更新关注作者按钮
+    function updateFollowAuthorButton() {
+        const btn = document.getElementById('followBtn');
+        if (!token || !postAuthorId || postAuthorUsername === currentUsername) {
+            btn.style.display = 'none';
+            return;
+        }
+        btn.style.display = 'inline';
+        btn.innerText = isFollowingAuthor ? '取消关注' : '关注作者';
+    }
+
+    // 更新作者主页链接
+    function updateAuthorLink() {
+        const link = document.getElementById('authorLink');
+        if (postAuthorId && postAuthorUsername) {
+            link.href = 'user-profile.html?id=' + postAuthorId + '&username=' + encodeURIComponent(postAuthorUsername);
+            link.style.display = 'inline';
+        }
     }
 
     // 加载评论列表

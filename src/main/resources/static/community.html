@@ -3,6 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <title>添加小区</title>
+    <style>
+        .badge {
+            display: inline-block;
+            background-color: #ff4444;
+            color: white;
+            border-radius: 10px;
+            padding: 0 6px;
+            font-size: 12px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        .badge:empty {
+            display: none;
+        }
+    </style>
 </head>
 <body>
 <h2>添加小区</h2>
@@ -10,8 +25,13 @@
 <p>
     <button onclick="logout()">退出登录</button>
     <a href="posts.html">帖子广场</a>
+    <a href="hot.html">热门榜单</a>
     <a href="my-posts.html">我的帖子</a>
+    <a href="communities.html">小区列表</a>
+    <a href="my-favorites.html">我的收藏</a>
+    <a href="my-follows.html">我的关注</a>
     <a href="profile.html">个人中心</a>
+    <a href="notifications.html">消息中心<span id="unreadBadge" class="badge"></span></a>
     <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
     <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
 </p>
@@ -27,6 +47,7 @@
 
 <script>
     showAdminLink();
+    loadUnreadCount();
 
     function showAdminLink() {
         const token = localStorage.getItem('token');
@@ -35,6 +56,27 @@
             document.getElementById('adminLink').style.display = 'inline';
             document.getElementById('adminPostsLink').style.display = 'inline';
         }
+    }
+
+    // 加载未读消息数，显示在消息中心入口上
+    function loadUnreadCount() {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        fetch('/notification/unreadCount', {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200 && data.data > 0) {
+                    document.getElementById('unreadBadge').innerText = data.data;
+                }
+            })
+            .catch(error => {
+                console.log('获取未读消息数失败：' + error);
+            });
     }
 
     function getRoleFromToken(token) {
@@ -61,10 +103,17 @@
         const address = document.getElementById('address').value;
         const price = document.getElementById('price').value;
 
+        const token = localStorage.getItem('token');
+        if (!token) {
+            alert('请先登录');
+            return;
+        }
+
         fetch('/community/add', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': token
             },
             body: JSON.stringify({
                 name: name,
@@ -74,13 +123,26 @@
                 price: price
             })
         })
-            .then(response => response.json())
+            .then(response => handleResponse(response))
             .then(data => {
-                document.getElementById('result').innerText = JSON.stringify(data);
+                if (data.code === 200) {
+                    document.getElementById('result').innerText = '添加成功：' + data.data;
+                } else {
+                    document.getElementById('result').innerText = '添加失败：' + data.msg;
+                }
             })
             .catch(error => {
                 document.getElementById('result').innerText = '请求失败：' + error;
             });
+    }
+
+    function handleResponse(response) {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(text || '请求失败，状态码：' + response.status);
+            });
+        }
+        return response.json();
     }
 </script>
 </body>

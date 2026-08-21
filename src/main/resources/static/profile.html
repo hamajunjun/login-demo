@@ -64,6 +64,19 @@
             color: green;
             margin-top: 10px;
         }
+        .badge {
+            display: inline-block;
+            background-color: #ff4444;
+            color: white;
+            border-radius: 10px;
+            padding: 0 6px;
+            font-size: 12px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        .badge:empty {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -72,9 +85,15 @@
 <div class="nav">
     <button onclick="logout()">退出登录</button>
     <a href="posts.html">帖子广场</a>
+    <a href="hot.html">热门榜单</a>
     <a href="post.html">去发帖</a>
+    <a href="hot.html">热门帖子</a>
     <a href="my-posts.html">我的帖子</a>
+    <a href="communities.html">小区列表</a>
+    <a href="my-favorites.html">我的收藏</a>
+    <a href="my-follows.html">我的关注</a>
     <a href="community.html">添加小区</a>
+    <a href="notifications.html">消息中心<span id="unreadBadge" class="badge"></span></a>
     <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
     <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
 </div>
@@ -88,6 +107,23 @@
     <div class="info-row">邮箱：<span id="email"></span></div>
     <div class="info-row">角色：<span id="role"></span></div>
     <div class="info-row">状态：<span id="status"></span></div>
+</div>
+
+<div class="upload-box">
+    <h3>快捷入口</h3>
+    <p>
+        <a href="my-posts.html">我的帖子</a> |
+        <a href="my-favorites.html">我的收藏</a> |
+        <a href="my-follows.html">我的关注/粉丝</a> |
+        <a href="notifications.html">消息中心</a>
+    </p>
+</div>
+
+<div class="upload-box">
+    <h3>修改密码</h3>
+    <p>旧密码：<input type="password" id="oldPassword" placeholder="旧密码"></p>
+    <p>新密码：<input type="password" id="newPassword" placeholder="新密码"></p>
+    <p><button onclick="changePassword()">修改密码</button></p>
 </div>
 
 <div class="upload-box">
@@ -125,6 +161,7 @@
     } else {
         loadUserInfo();
         showAdminLinks();
+        loadUnreadCount();
     }
 
     function showAdminLinks() {
@@ -144,6 +181,26 @@
         } catch (e) {
             return null;
         }
+    }
+
+    // 加载未读消息数，显示在消息中心入口上
+    function loadUnreadCount() {
+        if (!token) return;
+        fetch('/notification/unreadCount', {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200 && data.data > 0) {
+                    document.getElementById('unreadBadge').innerText = data.data;
+                }
+            })
+            .catch(error => {
+                console.log('获取未读消息数失败：' + error);
+            });
     }
 
     // 加载当前用户信息
@@ -283,6 +340,49 @@
                     loadUserInfo();
                 } else {
                     document.getElementById('tip').innerText = '修改失败：' + data.msg;
+                    document.getElementById('successTip').innerText = '';
+                }
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+                document.getElementById('successTip').innerText = '';
+            });
+    }
+
+    // 修改密码
+    function changePassword() {
+        const oldPassword = document.getElementById('oldPassword').value;
+        const newPassword = document.getElementById('newPassword').value;
+
+        if (!oldPassword || !newPassword) {
+            alert('请填写旧密码和新密码');
+            return;
+        }
+
+        fetch('/user/changePassword', {
+            method: 'POST',
+            headers: {
+                'Authorization': token,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                oldPassword: oldPassword,
+                newPassword: newPassword
+            })
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    document.getElementById('successTip').innerText = '密码修改成功，请使用新密码重新登录';
+                    document.getElementById('tip').innerText = '';
+                    document.getElementById('oldPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                    setTimeout(() => {
+                        localStorage.removeItem('token');
+                        window.location.href = 'login.html';
+                    }, 1500);
+                } else {
+                    document.getElementById('tip').innerText = '密码修改失败：' + data.msg;
                     document.getElementById('successTip').innerText = '';
                 }
             })

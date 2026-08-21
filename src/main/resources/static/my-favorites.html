@@ -2,14 +2,11 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>帖子管理</title>
+    <title>我的收藏</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             padding: 20px;
-        }
-        h2 {
-            margin-bottom: 10px;
         }
         .nav {
             margin: 15px 0;
@@ -28,6 +25,14 @@
             font-size: 16px;
             margin-bottom: 8px;
         }
+        .post-title a {
+            color: #333;
+            text-decoration: none;
+        }
+        .post-title a:hover {
+            color: #0066cc;
+            text-decoration: underline;
+        }
         .post-content {
             color: #333;
             margin-bottom: 8px;
@@ -35,10 +40,9 @@
         .post-meta {
             color: #666;
             font-size: 12px;
-            margin-bottom: 10px;
         }
         .post-actions button {
-            margin-right: 5px;
+            margin-top: 8px;
             cursor: pointer;
         }
         .pagination {
@@ -69,36 +73,34 @@
     </style>
 </head>
 <body>
-<h2>帖子管理（管理员）</h2>
+<h2>我的收藏</h2>
 
 <div class="nav">
     <button onclick="logout()">退出登录</button>
     <a href="posts.html">帖子广场</a>
-    <a href="hot.html">热门榜单</a>
     <a href="post.html">去发帖</a>
     <a href="hot.html">热门帖子</a>
     <a href="my-posts.html">我的帖子</a>
     <a href="communities.html">小区列表</a>
-    <a href="my-favorites.html">我的收藏</a>
     <a href="my-follows.html">我的关注</a>
-    <a href="community.html">添加小区</a>
     <a href="profile.html">个人中心</a>
     <a href="notifications.html">消息中心<span id="unreadBadge" class="badge"></span></a>
-    <a href="admin-users.html">用户管理</a>
+    <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
+    <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
 </div>
 
 <p id="tip"></p>
 
 <div id="postList">
-    <!-- 帖子数据会填充到这里 -->
+    <!-- 收藏数据会填充到这里 -->
 </div>
 
 <div class="pagination" id="pagination" style="display: none;">
-    <button onclick="loadPosts(1)">首页</button>
-    <button onclick="loadPosts(currentPage - 1)">上一页</button>
+    <button onclick="loadFavorites(1)">首页</button>
+    <button onclick="loadFavorites(currentPage - 1)">上一页</button>
     <span id="pageInfoText"></span>
-    <button onclick="loadPosts(currentPage + 1)">下一页</button>
-    <button onclick="loadPosts(totalPages)">末页</button>
+    <button onclick="loadFavorites(currentPage + 1)">下一页</button>
+    <button onclick="loadFavorites(totalPages)">末页</button>
 </div>
 
 <script>
@@ -106,18 +108,36 @@
     let currentPage = 1;
     let totalPages = 1;
 
-    // 页面加载时检查登录状态
     if (!token) {
         document.getElementById('tip').innerText = '未登录，请先登录';
         setTimeout(() => {
             window.location.href = 'login.html';
         }, 1500);
     } else {
-        checkAdmin();
+        showAdminLinks();
         loadUnreadCount();
+        loadFavorites(1);
     }
 
-    // 加载未读消息数，显示在消息中心入口上
+    function showAdminLinks() {
+        const role = getRoleFromToken(token);
+        if (role === 'ADMIN') {
+            document.getElementById('adminLink').style.display = 'inline';
+            document.getElementById('adminPostsLink').style.display = 'inline';
+        }
+    }
+
+    function getRoleFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
     function loadUnreadCount() {
         if (!token) return;
         fetch('/notification/unreadCount', {
@@ -137,37 +157,11 @@
             });
     }
 
-    // 从 token 中解析角色，判断是否是管理员
-    function checkAdmin() {
-        const role = getRoleFromToken(token);
-        if (role !== 'ADMIN') {
-            document.getElementById('tip').innerText = '权限不足，仅管理员可访问';
-            setTimeout(() => {
-                window.location.href = 'post.html';
-            }, 1500);
-            return;
-        }
-        loadPosts(1);
-    }
-
-    // 解析 JWT token 中的 payload，取出 role
-    function getRoleFromToken(token) {
-        try {
-            const payload = token.split('.')[1];
-            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-            const json = JSON.parse(decoded);
-            return json.role;
-        } catch (e) {
-            return null;
-        }
-    }
-
-    // 加载帖子列表（分页）
-    function loadPosts(pageNum) {
+    function loadFavorites(pageNum) {
         if (pageNum < 1) pageNum = 1;
         currentPage = pageNum;
 
-        fetch('/admin/post/list?pageNum=' + pageNum + '&pageSize=10', {
+        fetch('/favorite/myList?pageNum=' + pageNum + '&pageSize=10', {
             method: 'GET',
             headers: {
                 'Authorization': token
@@ -182,7 +176,7 @@
 
                 const pageInfo = data.data;
                 totalPages = pageInfo.pages || 1;
-                renderPosts(pageInfo.list);
+                renderFavorites(pageInfo.list);
                 document.getElementById('pagination').style.display = 'block';
                 document.getElementById('pageInfoText').innerText =
                     ' 第 ' + pageInfo.pageNum + ' / ' + totalPages + ' 页，共 ' + pageInfo.total + ' 条 ';
@@ -192,13 +186,12 @@
             });
     }
 
-    // 渲染帖子列表
-    function renderPosts(list) {
+    function renderFavorites(list) {
         const container = document.getElementById('postList');
         container.innerHTML = '';
 
         if (!list || list.length === 0) {
-            container.innerHTML = '<p>暂无帖子</p>';
+            container.innerHTML = '<p>暂无收藏</p>';
             return;
         }
 
@@ -207,28 +200,26 @@
             const div = document.createElement('div');
             div.className = 'post-item';
             div.innerHTML =
-                '<div class="post-title">ID:' + post.id + ' - <a href="post-detail.html?id=' + post.id + '">' + post.title + '</a></div>' +
+                '<div class="post-title"><a href="post-detail.html?id=' + post.id + '">' + post.title + '</a></div>' +
                 '<div class="post-content">' + post.content + '</div>' +
                 '<div class="post-meta">' +
                 '作者：' + (post.username || '') +
                 ' | 小区ID：' + (post.communityId || '') +
                 ' | 评分：' + (post.rating || 0) +
+                ' | 点赞：' + (post.likeCount || 0) +
                 ' | 发布时间：' + (post.createTime || '') +
                 '</div>' +
-                '<div class="post-actions">' +
-                '<button onclick="deletePost(' + post.id + ')">删除帖子</button>' +
-                '</div>';
+                '<div class="post-actions"><button onclick="cancelFavorite(' + post.id + ')">取消收藏</button></div>';
             container.appendChild(div);
         }
     }
 
-    // 删除帖子
-    function deletePost(id) {
-        if (!confirm('确定要删除 ID 为 ' + id + ' 的帖子吗？')) {
+    function cancelFavorite(postId) {
+        if (!confirm('确定取消收藏这条帖子吗？')) {
             return;
         }
 
-        fetch('/admin/post/delete?id=' + id, {
+        fetch('/favorite/cancel?postId=' + postId, {
             method: 'POST',
             headers: {
                 'Authorization': token
@@ -237,10 +228,10 @@
             .then(response => handleResponse(response))
             .then(data => {
                 if (data.code === 200) {
-                    alert('删除成功');
-                    loadPosts(currentPage);
+                    alert('取消收藏成功');
+                    loadFavorites(currentPage);
                 } else {
-                    alert('删除失败：' + data.msg);
+                    alert('取消收藏失败：' + data.msg);
                 }
             })
             .catch(error => {
@@ -248,7 +239,6 @@
             });
     }
 
-    // 统一处理响应：如果状态码不是 200，抛出错误信息
     function handleResponse(response) {
         if (!response.ok) {
             return response.text().then(text => {
@@ -258,7 +248,6 @@
         return response.json();
     }
 
-    // 退出登录
     function logout() {
         localStorage.removeItem('token');
         alert('已退出登录');

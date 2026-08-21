@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>消息通知</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        h2 {
+            margin-bottom: 10px;
+        }
+        .nav {
+            margin: 15px 0;
+        }
+        .nav a, .nav button {
+            margin-right: 10px;
+        }
+        .badge {
+            display: inline-block;
+            background-color: #ff4444;
+            color: white;
+            border-radius: 10px;
+            padding: 0 6px;
+            font-size: 12px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        .badge:empty {
+            display: none;
+        }
+        .notification-item {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .notification-item.unread {
+            background-color: #fff8e1;
+            border-left: 4px solid #ff9800;
+        }
+        .notification-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: white;
+            margin-right: 10px;
+        }
+        .type-LIKE {
+            background-color: #e91e63;
+        }
+        .type-COMMENT {
+            background-color: #2196f3;
+        }
+        .type-REPLY {
+            background-color: #4caf50;
+        }
+        .notification-content {
+            color: #333;
+            margin: 8px 0;
+        }
+        .notification-meta {
+            color: #666;
+            font-size: 12px;
+        }
+        .notification-actions {
+            margin-top: 10px;
+        }
+        .notification-actions button {
+            cursor: pointer;
+        }
+        .toolbar {
+            margin: 15px 0;
+        }
+        .toolbar button {
+            margin-right: 10px;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        .toolbar button.active {
+            background-color: #0066cc;
+            color: white;
+            border: none;
+        }
+        .mark-all-btn {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+        }
+        .pagination {
+            margin-top: 15px;
+        }
+        .pagination button {
+            margin-right: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        #tip {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<h2>消息通知</h2>
+
+<div class="nav">
+    <button onclick="logout()">退出登录</button>
+    <a href="posts.html">帖子广场</a>
+    <a href="post.html">去发帖</a>
+    <a href="hot.html">热门帖子</a>
+    <a href="my-posts.html">我的帖子</a>
+    <a href="communities.html">小区列表</a>
+    <a href="my-favorites.html">我的收藏</a>
+    <a href="my-follows.html">我的关注</a>
+    <a href="community.html">添加小区</a>
+    <a href="profile.html">个人中心</a>
+    <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
+    <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
+</div>
+
+<p id="tip"></p>
+
+<div class="toolbar">
+    <button id="tabALL" class="active" onclick="switchType('')">全部</button>
+    <button id="tabLIKE" onclick="switchType('LIKE')">点赞</button>
+    <button id="tabCOMMENT" onclick="switchType('COMMENT')">评论</button>
+    <button id="tabREPLY" onclick="switchType('REPLY')">回复</button>
+    <button class="mark-all-btn" onclick="markAllRead()">一键已读</button>
+</div>
+
+<div id="notificationList">
+    <!-- 通知数据会填充到这里 -->
+</div>
+
+<div class="pagination" id="pagination" style="display: none;">
+    <button onclick="loadNotifications(1)">首页</button>
+    <button onclick="loadNotifications(currentPage - 1)">上一页</button>
+    <span id="pageInfoText"></span>
+    <button onclick="loadNotifications(currentPage + 1)">下一页</button>
+    <button onclick="loadNotifications(totalPages)">末页</button>
+</div>
+
+<script>
+    const token = localStorage.getItem('token');
+    let currentPage = 1;
+    let totalPages = 1;
+    let currentType = '';
+
+    // 页面加载时检查登录状态
+    if (!token) {
+        document.getElementById('tip').innerText = '未登录，请先登录';
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 1500);
+    } else {
+        showAdminLinks();
+        loadNotifications(1);
+    }
+
+    // 根据 token 中的角色，决定是否显示管理员入口
+    function showAdminLinks() {
+        const role = getRoleFromToken(token);
+        if (role === 'ADMIN') {
+            document.getElementById('adminLink').style.display = 'inline';
+            document.getElementById('adminPostsLink').style.display = 'inline';
+        }
+    }
+
+    // 解析 JWT token 中的 payload，取出 role
+    function getRoleFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // 加载通知列表
+    function loadNotifications(pageNum) {
+        if (pageNum < 1) pageNum = 1;
+        currentPage = pageNum;
+
+        let url = '/notification/myList?pageNum=' + pageNum + '&pageSize=10';
+        if (currentType) {
+            url += '&type=' + encodeURIComponent(currentType);
+        }
+
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code !== 200) {
+                    document.getElementById('tip').innerText = '查询失败：' + data.msg;
+                    return;
+                }
+
+                const pageInfo = data.data;
+                totalPages = pageInfo.pages || 1;
+                renderNotifications(pageInfo.list);
+                document.getElementById('pagination').style.display = 'block';
+                document.getElementById('pageInfoText').innerText =
+                    ' 第 ' + pageInfo.pageNum + ' / ' + totalPages + ' 页，共 ' + pageInfo.total + ' 条 ';
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+            });
+    }
+
+    // 渲染通知列表
+    function renderNotifications(list) {
+        const container = document.getElementById('notificationList');
+        container.innerHTML = '';
+
+        if (!list || list.length === 0) {
+            container.innerHTML = '<p>暂无消息</p>';
+            return;
+        }
+
+        for (let i = 0; i < list.length; i++) {
+            const notification = list[i];
+            const div = document.createElement('div');
+            // 未读消息高亮显示
+            div.className = 'notification-item' + (notification.isRead === 0 ? ' unread' : '');
+
+            const typeText = getTypeText(notification.type);
+            const typeClass = 'type-' + (notification.type || 'LIKE');
+
+            div.innerHTML =
+                '<div>' +
+                '<span class="notification-type ' + typeClass + '">' + typeText + '</span>' +
+                '<span class="notification-meta">' + (notification.createTime || '') + '</span>' +
+                '</div>' +
+                '<div class="notification-content">' + (notification.content || '') + '</div>' +
+                '<div class="notification-actions">' +
+                (notification.isRead === 0 ? '<button onclick="markRead(' + notification.id + ')">标记已读</button>' : '') +
+                '</div>';
+
+            container.appendChild(div);
+        }
+    }
+
+    // 把通知类型转换成中文
+    function getTypeText(type) {
+        if (type === 'LIKE') return '点赞';
+        if (type === 'COMMENT') return '评论';
+        if (type === 'REPLY') return '回复';
+        return '通知';
+    }
+
+    // 切换分类
+    function switchType(type) {
+        currentType = type;
+        document.getElementById('tabALL').className = type === '' ? 'active' : '';
+        document.getElementById('tabLIKE').className = type === 'LIKE' ? 'active' : '';
+        document.getElementById('tabCOMMENT').className = type === 'COMMENT' ? 'active' : '';
+        document.getElementById('tabREPLY').className = type === 'REPLY' ? 'active' : '';
+        loadNotifications(1);
+    }
+
+    // 标记单条通知为已读
+    function markRead(id) {
+        fetch('/notification/markRead?id=' + id, {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    // 标记成功后刷新当前页
+                    loadNotifications(currentPage);
+                } else {
+                    alert('标记失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 一键全部已读
+    function markAllRead() {
+        if (!confirm('确定要将所有未读通知标记为已读吗？')) {
+            return;
+        }
+
+        fetch('/notification/markAllRead', {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    alert('全部标记已读成功');
+                    loadNotifications(currentPage);
+                } else {
+                    alert('标记失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    // 统一处理响应：如果 HTTP 状态码不是 200，抛出错误信息
+    function handleResponse(response) {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(text || '请求失败，状态码：' + response.status);
+            });
+        }
+        return response.json();
+    }
+
+    // 退出登录
+    function logout() {
+        localStorage.removeItem('token');
+        alert('已退出登录');
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>

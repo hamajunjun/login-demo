@@ -56,10 +56,15 @@ public class PostServiceImpl implements PostService{
 
     @Override
     public Post getPostById(Long id){
+        //数据库浏览量+1
+        postMapper.increaseViewCount(id);
         // 1. 先查 Redis 缓存
         String key = "post:detail:" + id;
         Post post = redisUtil.getObject(key, Post.class);
         if (post != null) {
+            // 缓存命中，把缓存里的 viewCount 也 +1，这样前端能实时看到
+            post.setViewCount(post.getViewCount()+1);
+            redisUtil.setObject(key,post,30,TimeUnit.MINUTES);
             return post;
         }
 
@@ -141,6 +146,16 @@ public class PostServiceImpl implements PostService{
     public PageInfo<Post> findByKeyword(String keyword,int pageNum,int pageSize){
         PageHelper.startPage(pageNum,pageSize);
         List<Post> list=postMapper.findByKeyword(keyword);
+        return new PageInfo<>(list);
+    }
+
+    @Override
+    public PageInfo<Post> getHotList(int pageNum,int pageSize){
+        PageHelper.startPage(pageNum,pageSize);
+        List<Post> list=postMapper.findHotList();
+        for(Post post : list){
+            post.setLikeCount(postLikeService.getLikeCount(post.getId()));
+        }
         return new PageInfo<>(list);
     }
 }

@@ -41,4 +41,23 @@ public class NotificationController {
         int count = notificationService.countUnread(token);
         return Result.success(count);
     }
+    @Operation(summary="我的通知列表",description="分页查询当前登录用户的通知列表，可按类型筛选")
+    @GetMapping("/myList")
+    public Result<PageInfo<Notification>> myList(@RequestHeader("Authorization") String token,
+                                                 @RequestParam(defaultValue="1") int pageNum,
+                                                 @RequestParam(defaultValue="10") int pageSize,
+                                                 @RequestParam(required = false) String type){
+        return Result.success(notificationService.listMyNotification(token,pageNum,pageSize));
+
+    }
+    @Operation(summary = "一键全部已读", description = "将当前登录用户的所有未读通知标记为已读")
+    @PostMapping("/markAllRead")
+    public Result<String> markAllRead(@RequestHeader("Authorization") String token) {
+        boolean success = notificationService.markAllRead(token);
+        if (success) {
+            return Result.success("全部标记已读成功");
+        } else {
+            return Result.error("标记失败");
+        }
+    }
 }

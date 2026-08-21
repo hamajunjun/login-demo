@@ -20,4 +20,10 @@ public interface NotificationService {
      * 查询未读通知数
      */
     int countUnread(String token);
+
+    PageInfo<Notification> listMyNotification(String token,int pageNum,int pageSize,String type);
+
+    boolean markAllRead(String token);
+
+
 }

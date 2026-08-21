@@ -3,6 +3,7 @@ package com.example.logindemo.service;
 import com.example.logindemo.entity.Notification;
 import com.example.logindemo.entity.User;
 import com.example.logindemo.mapper.NotificationMapper;
+import com.example.logindemo.mapper.PrivateMessageMapper;
 import com.example.logindemo.mapper.UserMapper;
 import com.example.logindemo.util.JwtUtil;
 import com.github.pagehelper.PageHelper;
@@ -20,6 +21,8 @@ public class NotificationServiceImpl implements NotificationService{
 
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private PrivateMessageMapper privateMessageMapper;
 
     @Override
     public PageInfo<Notification> listMyNotification(String token,int pageNum,int pageSize){
@@ -51,11 +54,33 @@ public class NotificationServiceImpl implements NotificationService{
         return notificationMapper.markRead(notificationId,user.getId())>0;
     }
 
+
+    @Override
+    public PageInfo<Notification> listMyNotification(String token,int pageNum,int pageSize,String type){
+        User user=getCurrentUser(token);
+        PageHelper.startPage(pageNum,pageSize);
+        List<Notification> list;
+        if(type !=null && !type.trim().isEmpty()){
+            list=notificationMapper.findByUserIdAndType(user.getId(),type);
+        }else{
+            list=notificationMapper.findByUserId(user.getId());
+        }
+        return new PageInfo<>(list);
+    }
+
+    @Override
+    public boolean markAllRead(String token){
+        User user=getCurrentUser(token);
+        return notificationMapper.markAllReaad(user.getId())>=0;
+    }
+
     @Override
     public int countUnread(String token){
         User user=getCurrentUser(token);
-        return notificationMapper.countUnread(user.getId());
+        return privateMessageMapper.countUnread(user.getId());
     }
+
+
     private User getCurrentUser(String token){
         String username=JwtUtil.getUsername(token);
         User user=userMapper.findByUsername(username);

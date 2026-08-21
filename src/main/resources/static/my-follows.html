@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>我的关注</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .nav {
+            margin: 15px 0;
+        }
+        .nav a, .nav button {
+            margin-right: 10px;
+        }
+        .stat-box {
+            margin: 15px 0;
+            font-size: 16px;
+        }
+        .stat-box span {
+            margin-right: 20px;
+            font-weight: bold;
+        }
+        .user-item {
+            border: 1px solid #ccc;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-info a {
+            color: #333;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .user-info a:hover {
+            color: #0066cc;
+            text-decoration: underline;
+        }
+        .user-actions button {
+            cursor: pointer;
+        }
+        .tab {
+            margin: 15px 0;
+        }
+        .tab button {
+            padding: 8px 15px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        .tab button.active {
+            background-color: #0066cc;
+            color: white;
+            border: none;
+        }
+        .pagination {
+            margin-top: 15px;
+        }
+        .pagination button {
+            margin-right: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        #tip {
+            color: red;
+            margin-top: 10px;
+        }
+        .badge {
+            display: inline-block;
+            background-color: #ff4444;
+            color: white;
+            border-radius: 10px;
+            padding: 0 6px;
+            font-size: 12px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+        .badge:empty {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<h2>我的关注</h2>
+
+<div class="nav">
+    <button onclick="logout()">退出登录</button>
+    <a href="posts.html">帖子广场</a>
+    <a href="post.html">去发帖</a>
+    <a href="hot.html">热门帖子</a>
+    <a href="my-posts.html">我的帖子</a>
+    <a href="communities.html">小区列表</a>
+    <a href="my-favorites.html">我的收藏</a>
+    <a href="profile.html">个人中心</a>
+    <a href="notifications.html">消息中心<span id="unreadBadge" class="badge"></span></a>
+    <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
+    <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
+</div>
+
+<div class="stat-box">
+    <span>关注：<span id="followingCount">0</span></span>
+    <span>粉丝：<span id="followerCount">0</span></span>
+</div>
+
+<div class="tab">
+    <button id="tabFollowing" class="active" onclick="switchTab('following')">我关注的人</button>
+    <button id="tabFollower" onclick="switchTab('follower')">我的粉丝</button>
+</div>
+
+<p id="tip"></p>
+
+<div id="userList">
+    <!-- 用户数据会填充到这里 -->
+</div>
+
+<div class="pagination" id="pagination" style="display: none;">
+    <button onclick="loadUsers(1)">首页</button>
+    <button onclick="loadUsers(currentPage - 1)">上一页</button>
+    <span id="pageInfoText"></span>
+    <button onclick="loadUsers(currentPage + 1)">下一页</button>
+    <button onclick="loadUsers(totalPages)">末页</button>
+</div>
+
+<script>
+    const token = localStorage.getItem('token');
+    let currentPage = 1;
+    let totalPages = 1;
+    let currentTab = 'following';
+
+    if (!token) {
+        document.getElementById('tip').innerText = '未登录，请先登录';
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 1500);
+    } else {
+        showAdminLinks();
+        loadUnreadCount();
+        loadCount();
+        loadUsers(1);
+    }
+
+    function showAdminLinks() {
+        const role = getRoleFromToken(token);
+        if (role === 'ADMIN') {
+            document.getElementById('adminLink').style.display = 'inline';
+            document.getElementById('adminPostsLink').style.display = 'inline';
+        }
+    }
+
+    function getRoleFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function loadUnreadCount() {
+        if (!token) return;
+        fetch('/notification/unreadCount', {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200 && data.data > 0) {
+                    document.getElementById('unreadBadge').innerText = data.data;
+                }
+            })
+            .catch(error => {
+                console.log('获取未读消息数失败：' + error);
+            });
+    }
+
+    function loadCount() {
+        fetch('/follow/count', {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    document.getElementById('followingCount').innerText = data.data.followingCount || 0;
+                    document.getElementById('followerCount').innerText = data.data.followerCount || 0;
+                }
+            })
+            .catch(error => {
+                console.log('获取关注数失败：' + error);
+            });
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.getElementById('tabFollowing').className = tab === 'following' ? 'active' : '';
+        document.getElementById('tabFollower').className = tab === 'follower' ? 'active' : '';
+        loadUsers(1);
+    }
+
+    function loadUsers(pageNum) {
+        if (pageNum < 1) pageNum = 1;
+        currentPage = pageNum;
+
+        const url = currentTab === 'following'
+            ? '/follow/myFollowings?pageNum=' + pageNum + '&pageSize=10'
+            : '/follow/myFollowers?pageNum=' + pageNum + '&pageSize=10';
+
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code !== 200) {
+                    document.getElementById('tip').innerText = '查询失败：' + data.msg;
+                    return;
+                }
+
+                const pageInfo = data.data;
+                totalPages = pageInfo.pages || 1;
+                renderUsers(pageInfo.list);
+                document.getElementById('pagination').style.display = 'block';
+                document.getElementById('pageInfoText').innerText =
+                    ' 第 ' + pageInfo.pageNum + ' / ' + totalPages + ' 页，共 ' + pageInfo.total + ' 条 ';
+            })
+            .catch(error => {
+                document.getElementById('tip').innerText = '请求失败：' + error;
+            });
+    }
+
+    function renderUsers(list) {
+        const container = document.getElementById('userList');
+        container.innerHTML = '';
+
+        if (!list || list.length === 0) {
+            container.innerHTML = '<p>暂无数据</p>';
+            return;
+        }
+
+        for (let i = 0; i < list.length; i++) {
+            const user = list[i];
+            const div = document.createElement('div');
+            div.className = 'user-item';
+
+            let actionButton = '';
+            if (currentTab === 'following') {
+                actionButton = '<button onclick="unfollow(' + user.id + ')">取消关注</button>';
+            }
+
+            div.innerHTML =
+                '<div class="user-info">' +
+                '<a href="user-profile.html?id=' + (user.id || '') + '&username=' + encodeURIComponent(user.username || '') + '">' + (user.username || '') + '</a>' +
+                ' | ' + (user.email || '') +
+                '</div>' +
+                '<div class="user-actions">' + actionButton + '</div>';
+            container.appendChild(div);
+        }
+    }
+
+    function unfollow(followingId) {
+        if (!confirm('确定取消关注该用户吗？')) {
+            return;
+        }
+
+        fetch('/follow/cancel?followingId=' + followingId, {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        })
+            .then(response => handleResponse(response))
+            .then(data => {
+                if (data.code === 200) {
+                    alert('已取消关注');
+                    loadCount();
+                    loadUsers(currentPage);
+                } else {
+                    alert('操作失败：' + data.msg);
+                }
+            })
+            .catch(error => {
+                alert('请求失败：' + error);
+            });
+    }
+
+    function handleResponse(response) {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(text || '请求失败，状态码：' + response.status);
+            });
+        }
+        return response.json();
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        alert('已退出登录');
+        window.location.href = 'login.html';
+    }
+</script>
+</body>
+</html>

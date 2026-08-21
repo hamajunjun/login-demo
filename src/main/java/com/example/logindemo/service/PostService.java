@@ -24,5 +24,7 @@ public interface PostService {
     boolean adminDeletePost(Long id);
 
     PageInfo<Post> findByKeyword(String keyword,int pageNum,int pageSize);
+
+    PageInfo<Post> getHotList(int pageNum,int pageSize);
 }
 

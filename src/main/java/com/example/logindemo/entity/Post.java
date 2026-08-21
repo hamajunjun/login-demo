@@ -15,4 +15,5 @@ public class Post {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     private Integer likeCount;
+    private Integer viewCount;
 }
