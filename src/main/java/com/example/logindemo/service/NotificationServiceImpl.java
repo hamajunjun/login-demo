@@ -3,7 +3,6 @@ package com.example.logindemo.service;
 import com.example.logindemo.entity.Notification;
 import com.example.logindemo.entity.User;
 import com.example.logindemo.mapper.NotificationMapper;
-import com.example.logindemo.mapper.PrivateMessageMapper;
 import com.example.logindemo.mapper.UserMapper;
 import com.example.logindemo.util.JwtUtil;
 import com.github.pagehelper.PageHelper;
@@ -21,16 +20,6 @@ public class NotificationServiceImpl implements NotificationService{
 
     @Autowired
     private UserMapper userMapper;
-    @Autowired
-    private PrivateMessageMapper privateMessageMapper;
-
-    @Override
-    public PageInfo<Notification> listMyNotification(String token,int pageNum,int pageSize){
-        User user=getCurrentUser(token);
-        PageHelper.startPage(pageNum,pageSize);
-        List<Notification> list=notificationMapper.findByUserId(user.getId());
-        return new PageInfo<>(list);
-    }
 
     @Override
     public boolean sendNotification(Long userId,String type,String content){
@@ -71,13 +60,13 @@ public class NotificationServiceImpl implements NotificationService{
     @Override
     public boolean markAllRead(String token){
         User user=getCurrentUser(token);
-        return notificationMapper.markAllReaad(user.getId())>=0;
+        return notificationMapper.markAllRead(user.getId())>=0;
     }
 
     @Override
     public int countUnread(String token){
         User user=getCurrentUser(token);
-        return privateMessageMapper.countUnread(user.getId());
+        return notificationMapper.countUnread(user.getId());
     }
 
 

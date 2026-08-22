@@ -22,4 +22,7 @@ public interface PrivateMessageMapper {
 
     @Select("SELECT COUNT(*) FROM private_message WHERE receiver_id = #{receiverId} AND is_read=0")
     int countUnread(Long receiverId);
+
+    @Update("UPDATE private_message SET is_read = 1 WHERE id = #{id} AND receiver_id = #{receiverId}")
+    int markRead(@Param("id") Long id, @Param("receiverId") Long receiverId);
 }

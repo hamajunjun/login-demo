@@ -5,10 +5,6 @@ import com.github.pagehelper.PageInfo;
 
 public interface NotificationService {
     /**
-     * 查询我的通知列表
-     */
-    PageInfo<Notification> listMyNotification(String token,int pageNum,int pageSize);
-    /**
      * 发送一条通知
      */
     boolean sendNotification(Long userId,String type,String content);

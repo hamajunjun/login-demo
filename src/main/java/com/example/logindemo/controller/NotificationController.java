@@ -16,14 +16,6 @@ public class NotificationController {
     @Autowired
     private NotificationService notificationService;
 
-    @Operation(summary="我的通知列表",description = "分页查询当前登录用户的通知列表")
-    @GetMapping("/myList")
-    public Result<PageInfo<Notification>> myList(@RequestHeader("Authorization") String token,
-                                                 @RequestParam(defaultValue="1") int pageNum,
-                                                 @RequestParam(defaultValue="10") int pageSize){
-        return Result.success(notificationService.listMyNotification(token,pageNum,pageSize));
-    }
-
     @Operation(summary = "标记通知已读", description = "将指定通知标记为已读，只能标记自己的通知")
     @PostMapping("/markRead")
     public Result<String> markRead(@RequestHeader("Authorization") String token,
@@ -47,7 +39,7 @@ public class NotificationController {
                                                  @RequestParam(defaultValue="1") int pageNum,
                                                  @RequestParam(defaultValue="10") int pageSize,
                                                  @RequestParam(required = false) String type){
-        return Result.success(notificationService.listMyNotification(token,pageNum,pageSize));
+        return Result.success(notificationService.listMyNotification(token,pageNum,pageSize,type));
 
     }
     @Operation(summary = "一键全部已读", description = "将当前登录用户的所有未读通知标记为已读")

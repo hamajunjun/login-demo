@@ -11,9 +11,13 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.Random;
 
 @Service
 public class PostServiceImpl implements PostService{
+
+    private final Random random =new Random();
+
     @Autowired
     private PostMapper postMapper;
 
@@ -64,22 +68,39 @@ public class PostServiceImpl implements PostService{
         if (post != null) {
             // 缓存命中，把缓存里的 viewCount 也 +1，这样前端能实时看到
             post.setViewCount(post.getViewCount()+1);
-            redisUtil.setObject(key,post,30,TimeUnit.MINUTES);
+            int expireMinutes=30+random.nextInt(10);
+            redisUtil.setObject(key,post,expireMinutes,TimeUnit.MINUTES);
             return post;
         }
 
-        // 2. Redis 没有，查数据库
-        post = postMapper.findById(id);
-        if (post == null) {
-            return null;
+        //缓存没有，加互斥锁，防止缓存击穿
+        synchronized(key.intern()){
+            //拿到锁后再查一次，可能别的线程已经重建了缓存
+            post=redisUtil.getObject(key,Post.class);
+            if (post != null) {
+                post.setViewCount(post.getViewCount()+1);
+                int expireMinutes=30+random.nextInt(10);
+                redisUtil.setObject(key,post,expireMinutes,TimeUnit.MINUTES);
+                return post;
+            }
+            // 2. Redis 没有，查数据库
+            post = postMapper.findById(id);
+            if (post == null) {
+                //数据库也没有，缓存空值，防止缓存穿透
+                int expireMinutes = 5 + random.nextInt(3);
+                redisUtil.setObject(key, null, expireMinutes, TimeUnit.MINUTES);
+                return null;
+            }
+            // 3. 填充点赞数
+            post.setLikeCount(postLikeService.getLikeCount(id));
+
+            // 4. 存入 Redis
+            int expireMinutes = 30 + random.nextInt(10);
+            redisUtil.setObject(key, post, expireMinutes, TimeUnit.MINUTES);
+
+            return post;
         }
-        // 3. 填充点赞数
-        post.setLikeCount(postLikeService.getLikeCount(id));
 
-        // 4. 存入 Redis，过期时间 30 分钟
-        redisUtil.setObject(key, post, 30, TimeUnit.MINUTES);
-
-        return post;
     }
 
     @Override
