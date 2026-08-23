@@ -8,6 +8,7 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +32,7 @@ public class PostServiceImpl implements PostService{
     private RedisUtil redisUtil;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean createPost(String title, String content,
                               String username, Long userId,Long communityId,Integer rating){
         Post post=new Post();
@@ -109,11 +111,11 @@ public class PostServiceImpl implements PostService{
         Post post = postMapper.findById(id);
         // 2.帖子不存在
         if(post==null){
-            return false;
+            throw new RuntimeException("帖子不存在");
         }
         // 3. 判断是不是当前用户发的
         if(!post.getUsername().equals(username)){
-            return false;
+            throw new RuntimeException("无权修改该帖子");
         }
         // 4. 执行更新
         int result = postMapper.updatePost(id,title,content);
@@ -126,11 +128,11 @@ public class PostServiceImpl implements PostService{
         Post post=postMapper.findById(id);
         // 2. 帖子不存在
         if(post==null){
-            return false;
+            throw new RuntimeException("帖子不存在");
         }
         // 3. 判断是不是当前用户发的
         if(!post.getUsername().equals(username)){
-            return false;
+            throw new RuntimeException("无权删除该帖子");
         }
         // 4. 执行删除
         int result = postMapper.deletePost(id);

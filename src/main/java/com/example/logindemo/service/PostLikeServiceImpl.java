@@ -7,6 +7,7 @@ import com.example.logindemo.mapper.PostMapper;
 import com.example.logindemo.util.RedisUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PostLikeServiceImpl implements PostLikeService{
@@ -24,13 +25,14 @@ public class PostLikeServiceImpl implements PostLikeService{
     private NotificationService notificationService;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean like(Long postId, Long userId){
         if(postId==null || userId==null){
-            return false;
+            throw new RuntimeException("参数不能为空");
         }
         PostLike exist = postLikeMapper.findPostIdAndUserId(postId,userId);
         if(exist !=null){
-            return false;
+            throw new RuntimeException("已经点赞过了");
         }
         PostLike postLike=new PostLike();
         postLike.setPostId(postId);
@@ -52,13 +54,14 @@ public class PostLikeServiceImpl implements PostLikeService{
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean unlike(Long postId,Long userId){
         if(postId==null || userId==null){
-            return false;
+            throw new RuntimeException("参数不能为空");
         }
         PostLike exist=postLikeMapper.findPostIdAndUserId(postId,userId);
         if(exist==null){
-            return false;
+            throw new RuntimeException("未点赞该帖子");
         }
         boolean success= postLikeMapper.delete(postId,userId)>0;
         if(success){

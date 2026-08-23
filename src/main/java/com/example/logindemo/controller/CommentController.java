@@ -30,17 +30,9 @@ public class CommentController {
                               @RequestParam Long postId,
                               @RequestParam String content,
                               @RequestParam(required = false) Long parentId) {
-        String username = JwtUtil.getUsername(token);
-        User user = userService.findByUsername(username);
-        if (user == null) {
-            return Result.error("用户不存在");
-        }
-
-        boolean success = commentService.addComment(postId, user.getId(), username, content, parentId);
-        if (success) {
-            return Result.success("评论成功");
-        }
-        return Result.error("评论失败，内容不能为空");
+        User user = userService.getCurrentUser(token);
+        commentService.addComment(postId, user.getId(), user.getUsername(), content, parentId);
+        return Result.success("评论成功");
     }
 
     // 查询某个帖子的评论列表（公开接口）
@@ -58,13 +50,10 @@ public class CommentController {
     @PostMapping("/delete")
     public Result<String> delete(@RequestHeader("Authorization") String token,
                                  @RequestParam Long id) {
-        String username = JwtUtil.getUsername(token);
+        User user = userService.getCurrentUser(token);
         String role = JwtUtil.getRole(token);
 
-        boolean success = commentService.deleteComment(id, username, role);
-        if (success) {
-            return Result.success("删除成功");
-        }
-        return Result.error("评论不存在或无权删除");
+        commentService.deleteComment(id, user.getUsername(), role);
+        return Result.success("删除成功");
     }
 }

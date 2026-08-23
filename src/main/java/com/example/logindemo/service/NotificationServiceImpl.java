@@ -1,10 +1,7 @@
 package com.example.logindemo.service;
 
 import com.example.logindemo.entity.Notification;
-import com.example.logindemo.entity.User;
 import com.example.logindemo.mapper.NotificationMapper;
-import com.example.logindemo.mapper.UserMapper;
-import com.example.logindemo.util.JwtUtil;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,64 +15,55 @@ public class NotificationServiceImpl implements NotificationService{
     @Autowired
     private NotificationMapper notificationMapper;
 
-    @Autowired
-    private UserMapper userMapper;
-
     @Override
     public boolean sendNotification(Long userId,String type,String content){
         if(userId==null || type==null || type.trim().isEmpty() || content==null || content.trim().isEmpty()){
-            return false;
+            throw new RuntimeException("通知参数不完整");
         }
         Notification notification = new Notification();
         notification.setUserId(userId);
         notification.setType(type);
         notification.setContent(content.trim());
 
-        return notificationMapper.insert(notification)>0;
-    }
-
-    @Override
-    public boolean markRead(String token,Long notificationId){
-        if(notificationId==null){
-            return false;
+        boolean success = notificationMapper.insert(notification)>0;
+        if (!success) {
+            throw new RuntimeException("通知发送失败");
         }
-        User user=getCurrentUser(token);
-        return notificationMapper.markRead(notificationId,user.getId())>0;
+        return true;
+    }
+
+    @Override
+    public boolean markRead(Long userId,Long notificationId){
+        if(notificationId==null){
+            throw new RuntimeException("通知ID不能为空");
+        }
+        boolean success = notificationMapper.markRead(notificationId, userId)>0;
+        if (!success) {
+            throw new RuntimeException("通知不存在或无权限");
+        }
+        return true;
     }
 
 
     @Override
-    public PageInfo<Notification> listMyNotification(String token,int pageNum,int pageSize,String type){
-        User user=getCurrentUser(token);
+    public PageInfo<Notification> listMyNotification(Long userId,int pageNum,int pageSize,String type){
         PageHelper.startPage(pageNum,pageSize);
         List<Notification> list;
         if(type !=null && !type.trim().isEmpty()){
-            list=notificationMapper.findByUserIdAndType(user.getId(),type);
+            list=notificationMapper.findByUserIdAndType(userId, type);
         }else{
-            list=notificationMapper.findByUserId(user.getId());
+            list=notificationMapper.findByUserId(userId);
         }
         return new PageInfo<>(list);
     }
 
     @Override
-    public boolean markAllRead(String token){
-        User user=getCurrentUser(token);
-        return notificationMapper.markAllRead(user.getId())>=0;
+    public boolean markAllRead(Long userId){
+        return notificationMapper.markAllRead(userId)>=0;
     }
 
     @Override
-    public int countUnread(String token){
-        User user=getCurrentUser(token);
-        return notificationMapper.countUnread(user.getId());
-    }
-
-
-    private User getCurrentUser(String token){
-        String username=JwtUtil.getUsername(token);
-        User user=userMapper.findByUsername(username);
-        if(user==null){
-            throw new RuntimeException("用户不存在");
-        }
-        return user;
+    public int countUnread(Long userId){
+        return notificationMapper.countUnread(userId);
     }
 }

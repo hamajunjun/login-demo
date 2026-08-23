@@ -7,21 +7,21 @@ public interface PrivateMessageService {
     /**
      * 发送私信
      */
-    boolean sendMessage(String token,Long receiverId,String content);
+    boolean sendMessage(Long senderId,Long receiverId,String content);
     /**
      * 查询收件箱
      */
-    PageInfo<PrivateMessage> listInbox(String token, int pageNum, int pageSize);
+    PageInfo<PrivateMessage> listInbox(Long userId, int pageNum, int pageSize);
     /**
      * 查询发件箱
      */
-    PageInfo<PrivateMessage> listOutbox(String token, int pageNum, int pageSize);
+    PageInfo<PrivateMessage> listOutbox(Long userId, int pageNum, int pageSize);
     /**
      * 查询未读私信数
      */
-    int countUnread(String token);
+    int countUnread(Long userId);
     /**
      * 标记私信已读
      */
-    boolean markRead(String token, Long id);
+    boolean markRead(Long userId, Long id);
 }

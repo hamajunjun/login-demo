@@ -4,7 +4,6 @@ import com.example.logindemo.entity.PrivateMessage;
 import com.example.logindemo.entity.User;
 import com.example.logindemo.mapper.PrivateMessageMapper;
 import com.example.logindemo.mapper.UserMapper;
-import com.example.logindemo.util.JwtUtil;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,16 +20,11 @@ public class PrivateMessageServiceImpl implements PrivateMessageService{
     private PrivateMessageMapper privateMessageMapper;
 
     @Override
-    public boolean sendMessage(String token,Long receiverId,String content){
-        String username=JwtUtil.getUsername(token);
-        User sender=userMapper.findByUsername(username);
-        if(sender==null){
-            throw new RuntimeException("发送人不存在");
-        }
+    public boolean sendMessage(Long senderId,Long receiverId,String content){
         if(receiverId==null){
             throw new RuntimeException("接收人不能为空");
         }
-        if(sender.getId().equals(receiverId)){
+        if(senderId.equals(receiverId)){
             throw new RuntimeException("不能给自己发私信");
         }
         User receiver=userMapper.findById(receiverId);
@@ -41,49 +35,40 @@ public class PrivateMessageServiceImpl implements PrivateMessageService{
             throw new RuntimeException("私信内容不能为空");
         }
         PrivateMessage message = new PrivateMessage();
-        message.setSenderId(sender.getId());
+        message.setSenderId(senderId);
         message.setReceiverId(receiverId);
         message.setContent(content.trim());
 
-        return privateMessageMapper.insert(message)>0;
+        boolean success = privateMessageMapper.insert(message) > 0;
+        if (!success) {
+            throw new RuntimeException("发送失败");
+        }
+        return true;
     }
 
     @Override
-    public PageInfo<PrivateMessage> listInbox(String token,int pageNum,int pageSize){
-        User user=getCurrentUser(token);
+    public PageInfo<PrivateMessage> listInbox(Long userId,int pageNum,int pageSize){
         PageHelper.startPage(pageNum,pageSize);
-        List<PrivateMessage> list=privateMessageMapper.findInboxByReceiverId(user.getId());
+        List<PrivateMessage> list=privateMessageMapper.findInboxByReceiverId(userId);
         return new PageInfo<>(list);
     }
 
     @Override
-    public PageInfo<PrivateMessage> listOutbox(String token, int pageNum, int pageSize){
-        User user=getCurrentUser(token);
+    public PageInfo<PrivateMessage> listOutbox(Long userId, int pageNum, int pageSize){
         PageHelper.startPage(pageNum,pageSize);
-        List<PrivateMessage> list=privateMessageMapper.findOutboxBySenderId(user.getId());
+        List<PrivateMessage> list=privateMessageMapper.findOutboxBySenderId(userId);
         return new PageInfo<>(list);
     }
     @Override
-    public int countUnread(String token){
-        User user=getCurrentUser(token);
-        return privateMessageMapper.countUnread(user.getId());
+    public int countUnread(Long userId){
+        return privateMessageMapper.countUnread(userId);
     }
 
     @Override
-    public boolean markRead(String token, Long id) {
+    public boolean markRead(Long userId, Long id) {
         if (id == null) {
             throw new RuntimeException("消息ID不能为空");
         }
-        User user = getCurrentUser(token);
-        return privateMessageMapper.markRead(id, user.getId()) > 0;
-    }
-
-    private User getCurrentUser(String token){
-        String username = JwtUtil.getUsername(token);
-        User user=userMapper.findByUsername(username);
-        if(user==null){
-            throw new RuntimeException("用户不存在");
-        }
-        return user;
+        return privateMessageMapper.markRead(id, userId) > 0;
     }
 }

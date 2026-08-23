@@ -11,15 +11,15 @@ public interface NotificationService {
     /**
      * 标记通知为已读
      */
-    boolean markRead(String token,Long notificationId);
+    boolean markRead(Long userId,Long notificationId);
     /**
      * 查询未读通知数
      */
-    int countUnread(String token);
+    int countUnread(Long userId);
 
-    PageInfo<Notification> listMyNotification(String token,int pageNum,int pageSize,String type);
+    PageInfo<Notification> listMyNotification(Long userId,int pageNum,int pageSize,String type);
 
-    boolean markAllRead(String token);
+    boolean markAllRead(Long userId);
 
 
 }

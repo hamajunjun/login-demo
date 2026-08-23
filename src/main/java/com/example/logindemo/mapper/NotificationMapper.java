@@ -24,6 +24,6 @@ public interface NotificationMapper {
     @Update("UPDATE notification SET is_read=1 WHERE is_read=0 AND user_id=#{userId}")
     int markAllRead(Long userId);
 
-    @Select("SELECT * FROM notification WHERE user_id=#{userId} AND tpye=#{type} ORDER BY create_time DESC")
+    @Select("SELECT * FROM notification WHERE user_id=#{userId} AND type=#{type} ORDER BY create_time DESC")
     List<Notification> findByUserIdAndType(@Param("userId") Long userId,@Param("type") String type);
 }

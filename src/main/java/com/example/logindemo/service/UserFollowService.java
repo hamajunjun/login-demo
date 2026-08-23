@@ -8,35 +8,35 @@ public interface UserFollowService {
     /**
      * 关注用户
      */
-    void follow(String token, Long followingId);
+    void follow(Long userId, Long followingId);
 
     /**
      * 取消关注
      */
-    void unfollow(String token, Long followingId);
+    void unfollow(Long userId, Long followingId);
 
     /**
      * 判断是否已关注
      */
-    boolean isFollowing(String token, Long followingId);
+    boolean isFollowing(Long userId, Long followingId);
 
     /**
      * 查询我关注的人
      */
-    PageInfo<User> listFollowings(String token, int pageNum, int pageSize);
+    PageInfo<User> listFollowings(Long userId, int pageNum, int pageSize);
 
     /**
      * 查询我的粉丝
      */
-    PageInfo<User> listFollowers(String token, int pageNum, int pageSize);
+    PageInfo<User> listFollowers(Long userId, int pageNum, int pageSize);
 
     /**
      * 统计关注数
      */
-    int countFollowing(String token);
+    int countFollowing(Long userId);
 
     /**
      * 统计粉丝数
      */
-    int countFollowers(String token);
+    int countFollowers(Long userId);
 }

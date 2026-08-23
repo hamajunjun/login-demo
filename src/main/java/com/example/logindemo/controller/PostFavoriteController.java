@@ -2,7 +2,9 @@ package com.example.logindemo.controller;
 
 import com.example.logindemo.common.Result;
 import com.example.logindemo.entity.Post;
+import com.example.logindemo.entity.User;
 import com.example.logindemo.service.PostFavoriteService;
+import com.example.logindemo.service.UserService;
 import com.github.pagehelper.PageInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,12 +19,16 @@ public class PostFavoriteController {
     @Autowired
     private PostFavoriteService postFavoriteService;
 
+    @Autowired
+    private UserService userService;
+
     @Operation(summary = "收藏帖子", description = "当前登录用户收藏指定帖子")
     @PostMapping("/add")
     public Result<String> addFavorite(
             @RequestHeader("Authorization") String token,
             @RequestParam Long postId) {
-        postFavoriteService.addFavorite(token, postId);
+        User user = userService.getCurrentUser(token);
+        postFavoriteService.addFavorite(user.getId(), postId);
         return Result.success("收藏成功");
     }
 
@@ -31,7 +37,8 @@ public class PostFavoriteController {
     public Result<String> cancelFavorite(
             @RequestHeader("Authorization") String token,
             @RequestParam Long postId) {
-        postFavoriteService.cancelFavorite(token, postId);
+        User user = userService.getCurrentUser(token);
+        postFavoriteService.cancelFavorite(user.getId(), postId);
         return Result.success("取消收藏成功");
     }
 
@@ -40,7 +47,8 @@ public class PostFavoriteController {
     public Result<Boolean> isFavorite(
             @RequestHeader("Authorization") String token,
             @RequestParam Long postId) {
-        return Result.success(postFavoriteService.isFavorite(token, postId));
+        User user = userService.getCurrentUser(token);
+        return Result.success(postFavoriteService.isFavorite(user.getId(), postId));
     }
 
     @Operation(summary = "我的收藏列表", description = "分页查询当前登录用户收藏的帖子列表")
@@ -49,6 +57,7 @@ public class PostFavoriteController {
             @RequestHeader("Authorization") String token,
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "10") int pageSize) {
-        return Result.success(postFavoriteService.listMyFavorites(token, pageNum, pageSize));
+        User user = userService.getCurrentUser(token);
+        return Result.success(postFavoriteService.listMyFavorites(user.getId(), pageNum, pageSize));
     }
 }

@@ -8,6 +8,7 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -24,9 +25,10 @@ public class CommentServiceImpl implements CommentService {
     private NotificationService notificationService;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean addComment(Long postId, Long userId, String username, String content, Long parentId) {
         if (content == null || content.trim().isEmpty()) {
-            return false;
+            throw new RuntimeException("评论内容不能为空");
         }
 
         Comment comment = new Comment();
@@ -38,7 +40,7 @@ public class CommentServiceImpl implements CommentService {
 
         int result = commentMapper.insertComment(comment);
         if(result <= 0){
-            return false;
+            throw new RuntimeException("评论失败");
         }
         //查询帖子信息
         Post post=postMapper.findById(postId);
@@ -84,15 +86,18 @@ public class CommentServiceImpl implements CommentService {
     public boolean deleteComment(Long id, String currentUsername, String currentRole) {
         Comment comment = commentMapper.findById(id);
         if (comment == null) {
-            return false;
+            throw new RuntimeException("评论不存在");
         }
 
         // 只有评论作者或管理员可以删除
         if (!comment.getUsername().equals(currentUsername) && !"ADMIN".equals(currentRole)) {
-            return false;
+            throw new RuntimeException("无权删除该评论");
         }
 
         int result = commentMapper.deleteById(id);
-        return result > 0;
+        if (result <= 0) {
+            throw new RuntimeException("删除失败");
+        }
+        return true;
     }
 }

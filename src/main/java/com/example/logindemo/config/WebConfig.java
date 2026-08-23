@@ -27,14 +27,20 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/post/list")
                 .excludePathPatterns("/post/listByCommunity")
                 .excludePathPatterns("/community/list")
-                .excludePathPatterns("/*.html")
                 .excludePathPatterns("/comment/list")
+                .excludePathPatterns("/postLike/count")
+                // Knife4j / Swagger 相关路径放行
                 .excludePathPatterns("/doc.html")
+                .excludePathPatterns("/doc.html/**")
                 .excludePathPatterns("/webjars/**")
                 .excludePathPatterns("/v3/api-docs/**")
                 .excludePathPatterns("/swagger-ui/**")
                 .excludePathPatterns("/swagger-ui.html")
-                .excludePathPatterns("/favicon.ico");
+                .excludePathPatterns("/swagger-resources/**")
+                .excludePathPatterns("/favicon.ico")
+                .excludePathPatterns("/*.html")
+                .excludePathPatterns("/*.css")
+                .excludePathPatterns("/*.js");
 
         registry.addInterceptor(adminInterceptor)
                 .addPathPatterns("/admin/**");

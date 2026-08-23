@@ -11,11 +11,18 @@ import java.util.Date;
 
 public class JwtUtil {
 
-    // 密钥，用来签名和验签。实际项目建议放到配置文件中，不要直接写死在代码里
-    private static final String SECRET = "your-secret-key";
+    // 密钥，用来签名和验签。通过 JwtConfig 从配置文件读取
+    private static String SECRET;
 
     // Token 过期时间：7 天，单位毫秒
     private static final long EXPIRE_TIME = 7 * 24 * 60 * 60 * 1000;
+
+    /**
+     * 从配置类注入密钥
+     */
+    public static void setSecret(String secret) {
+        SECRET = secret;
+    }
 
     /**
      * 生成 JWT Token

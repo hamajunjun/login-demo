@@ -2,6 +2,7 @@ package com.example.logindemo.service;
 
 import com.example.logindemo.entity.User;
 import com.example.logindemo.mapper.UserMapper;
+import com.example.logindemo.util.JwtUtil;
 import com.example.logindemo.util.PasswordUtil;
 import com.example.logindemo.util.RedisUtil;
 import com.github.pagehelper.PageHelper;
@@ -76,6 +77,16 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public User getCurrentUser(String token) {
+        String username = JwtUtil.getUsername(token);
+        User user = findByUsername(username);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        return user;
+    }
+
+    @Override
     public User findById(Long id){
         return userMapper.findById(id);
     }
@@ -85,11 +96,11 @@ public class UserServiceImpl implements UserService {
         // 1. 根据用户名查询用户
         User user = userMapper.findByUsername(username);
         if(user == null){
-            return false;
+            throw new RuntimeException("用户不存在");
         }
         // 2. 校验旧密码是否正确
         if(!PasswordUtil.matches(oldPassword,user.getPassword())){
-            return false;
+            throw new RuntimeException("旧密码错误");
         }
         //3. 把新密码加密
         String encodedNewPassword = PasswordUtil.encode(newPassword);
@@ -128,7 +139,7 @@ public class UserServiceImpl implements UserService {
     public User updateCurrentUserInfo(String currentUsername,String newUsername,String newEmail){
         User user=userMapper.findByUsername(currentUsername);
         if(user==null){
-            return null;
+            throw new RuntimeException("用户不存在");
         }
         user.setUsername(newUsername);
         user.setEmail(newEmail);
@@ -138,13 +149,13 @@ public class UserServiceImpl implements UserService {
             redisUtil.delete("user:info:"+currentUsername);
             return user;
         }
-        return null;
+        throw new RuntimeException("修改失败");
     }
     @Override
     public boolean deleteCurrentUser(String username){
         User user=userMapper.findByUsername(username);
         if(user==null){
-            return false;
+            throw new RuntimeException("用户不存在");
         }
         int result =userMapper.deleteById(user.getId());
         return result>0;
@@ -171,7 +182,7 @@ public class UserServiceImpl implements UserService {
     public boolean updateAvatar(Long id,String avatar){
         User user=userMapper.findById(id);
         if(user==null){
-            return false;
+            throw new RuntimeException("用户不存在");
         }
         int result=userMapper.updateAvatar(id,avatar);
         return result>0;

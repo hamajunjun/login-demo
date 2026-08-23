@@ -39,11 +39,7 @@ public class UserController {
     @Operation(summary = "获取当前用户信息", description = "根据请求头中的 token 获取当前登录用户的详细信息")
     @GetMapping("/info")
     public Result<User> info(@RequestHeader("Authorization") String token) {
-        String username = JwtUtil.getUsername(token);
-        User user = userService.findByUsername(username);
-        if (user == null) {
-            return Result.error("用户不存在");
-        }
+        User user = userService.getCurrentUser(token);
         user.setPassword(null);
         return Result.success(user);
     }
@@ -64,12 +60,9 @@ public class UserController {
     public Result<String> changePassword(@RequestHeader("Authorization") String token,
                                          @RequestParam String oldPassword,
                                          @RequestParam String newPassword){
-        String username = JwtUtil.getUsername(token);
-        boolean success = userService.changePassword(username,oldPassword,newPassword);
-        if(success){
-            return Result.success("修改密码成功");
-        }
-        return Result.error("旧密码错误或用户不存在");
+        User user = userService.getCurrentUser(token);
+        userService.changePassword(user.getUsername(), oldPassword, newPassword);
+        return Result.success("修改密码成功");
     }
 
     @Operation(summary = "更新个人信息", description = "当前登录用户更新自己的用户名和邮箱")
@@ -77,36 +70,26 @@ public class UserController {
     public Result<String> updateMyInfo(@RequestHeader("Authorization") String token,
                                        @RequestParam String username,
                                        @RequestParam String email){
-        String currentUsername=JwtUtil.getUsername(token);
-        User updatedUser=userService.updateCurrentUserInfo(currentUsername,username,email);
-        if (updatedUser !=null) {
-            updatedUser.setPassword(null);
-            String newToken = JwtUtil.generateToken(updatedUser);
-            return Result.success(newToken);
-        }
-        return Result.error("修改失败");
+        User currentUser = userService.getCurrentUser(token);
+        User updatedUser = userService.updateCurrentUserInfo(currentUser.getUsername(), username, email);
+        updatedUser.setPassword(null);
+        String newToken = JwtUtil.generateToken(updatedUser);
+        return Result.success(newToken);
     }
 
     @Operation(summary = "注销账号", description = "当前登录用户注销自己的账号")
     @PostMapping("/deleteMyAccount")
     public Result<String> deleteMyAccount(@RequestHeader("Authorization") String token){
-        String username = JwtUtil.getUsername(token);
-        boolean success=userService.deleteCurrentUser(username);
-        if(success){
-            return Result.success("账号已注销");
-        }
-        return Result.error("注销失败");
+        User user = userService.getCurrentUser(token);
+        userService.deleteCurrentUser(user.getUsername());
+        return Result.success("账号已注销");
     }
 
     @Operation(summary = "更新头像", description = "当前登录用户上传图片并更新个人头像")
     @PostMapping("/updateAvatar")
     public Result<String> updateAvatar(@RequestHeader("Authorization") String token,
                                        @RequestParam("file") MultipartFile file){
-        String username=JwtUtil.getUsername(token);
-        User user=userService.findByUsername(username);
-        if(user==null){
-            return Result.error("用户不存在");
-        }
+        User user = userService.getCurrentUser(token);
         if(file==null || file.isEmpty()){
             return Result.error("请选择要上传的文件");
         }
@@ -133,10 +116,7 @@ public class UserController {
 
         String avatarUrl="/uploads/"+newFileName;
 
-        boolean success=userService.updateAvatar(user.getId(),avatarUrl);
-        if(success){
-            return Result.success(avatarUrl);
-        }
-        return Result.error("头像更新失败");
+        userService.updateAvatar(user.getId(), avatarUrl);
+        return Result.success(avatarUrl);
     }
 }

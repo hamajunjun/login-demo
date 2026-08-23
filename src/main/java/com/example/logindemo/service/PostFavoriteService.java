@@ -8,20 +8,20 @@ public interface PostFavoriteService {
     /**
      * 收藏帖子
      */
-    void addFavorite(String token, Long postId);
+    void addFavorite(Long userId, Long postId);
 
     /**
      * 取消收藏
      */
-    void cancelFavorite(String token, Long postId);
+    void cancelFavorite(Long userId, Long postId);
 
     /**
      * 判断是否已收藏
      */
-    boolean isFavorite(String token, Long postId);
+    boolean isFavorite(Long userId, Long postId);
 
     /**
      * 查询我收藏的帖子列表（分页）
      */
-    PageInfo<Post> listMyFavorites(String token, int pageNum, int pageSize);
+    PageInfo<Post> listMyFavorites(Long userId, int pageNum, int pageSize);
 }

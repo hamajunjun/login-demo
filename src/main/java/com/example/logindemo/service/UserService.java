@@ -15,6 +15,8 @@ public interface UserService {
 
     User findByUsername(String username);
 
+    User getCurrentUser(String token);
+
     User findById(Long id);
 
     boolean changePassword(String username,String oldPassword,String newPassword);
