@@ -6,9 +6,11 @@ import com.example.logindemo.mapper.PostMapper;
 import com.example.logindemo.util.RedisUtil;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import org.redisson.api.RLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.redisson.api.RedissonClient;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -18,6 +20,9 @@ import java.util.Random;
 public class PostServiceImpl implements PostService{
 
     private final Random random =new Random();
+
+    @Autowired
+    private RedissonClient redissonClient;
 
     @Autowired
     private PostMapper postMapper;
@@ -62,22 +67,26 @@ public class PostServiceImpl implements PostService{
 
     @Override
     public Post getPostById(Long id){
-        //数据库浏览量+1
+        // 数据库浏览量+1（这个不需要锁，所有请求都应该计数）
         postMapper.increaseViewCount(id);
+
         // 1. 先查 Redis 缓存
         String key = "post:detail:" + id;
         Post post = redisUtil.getObject(key, Post.class);
         if (post != null) {
-            // 缓存命中，把缓存里的 viewCount 也 +1，这样前端能实时看到
+            // 缓存命中，把缓存里的 viewCount 也 +1
             post.setViewCount(post.getViewCount()+1);
             int expireMinutes=30+random.nextInt(10);
             redisUtil.setObject(key,post,expireMinutes,TimeUnit.MINUTES);
             return post;
         }
 
-        //缓存没有，加互斥锁，防止缓存击穿
-        synchronized(key.intern()){
-            //拿到锁后再查一次，可能别的线程已经重建了缓存
+        // 缓存没有，加分布式锁，防止缓存击穿
+        // 锁的 key 和缓存 key 区分开，前面加 "lock:" 前缀
+        RLock lock = redissonClient.getLock("lock:" + key);
+        lock.lock();
+        try {
+            // 拿到锁后再查一次，可能别的线程已经重建了缓存
             post=redisUtil.getObject(key,Post.class);
             if (post != null) {
                 post.setViewCount(post.getViewCount()+1);
@@ -85,14 +94,17 @@ public class PostServiceImpl implements PostService{
                 redisUtil.setObject(key,post,expireMinutes,TimeUnit.MINUTES);
                 return post;
             }
+
             // 2. Redis 没有，查数据库
             post = postMapper.findById(id);
+
             if (post == null) {
-                //数据库也没有，缓存空值，防止缓存穿透
+                // 数据库也没有，缓存空值，防止缓存穿透
                 int expireMinutes = 5 + random.nextInt(3);
                 redisUtil.setObject(key, null, expireMinutes, TimeUnit.MINUTES);
                 return null;
             }
+
             // 3. 填充点赞数
             post.setLikeCount(postLikeService.getLikeCount(id));
 
@@ -101,8 +113,10 @@ public class PostServiceImpl implements PostService{
             redisUtil.setObject(key, post, expireMinutes, TimeUnit.MINUTES);
 
             return post;
+        } finally {
+            // 无论业务成功还是失败，都要释放锁
+            lock.unlock();
         }
-
     }
 
     @Override

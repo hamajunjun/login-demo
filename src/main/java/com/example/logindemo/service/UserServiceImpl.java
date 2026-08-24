@@ -7,6 +7,8 @@ import com.example.logindemo.util.PasswordUtil;
 import com.example.logindemo.util.RedisUtil;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +22,9 @@ public class UserServiceImpl implements UserService {
     private UserMapper userMapper;
     @Autowired
     private RedisUtil redisUtil;
+
+    @Autowired
+    private RedissonClient redissonClient;
 
     @Override
     public User login(String username, String password) {
@@ -65,15 +70,38 @@ public class UserServiceImpl implements UserService {
     @Override
     public User findByUsername(String username){
         String key="user:info:"+username;
-        User user = redisUtil.getObject(key,User.class);
-        if(user!=null){
+
+        // 1. 先查缓存
+        User user = redisUtil.getObject(key, User.class);
+        if(user != null){
             return user;
         }
-        user=userMapper.findByUsername(username);
-        if(user!=null){
-            redisUtil.setObject(key,user,30, TimeUnit.MINUTES);
+
+        // 2. 缓存没有，加分布式锁
+        RLock lock = redissonClient.getLock("lock:" + key);
+        lock.lock();
+        try {
+            // 拿到锁后再查一次缓存
+            user = redisUtil.getObject(key, User.class);
+            if(user != null){
+                return user;
+            }
+
+            // 3. 查数据库
+            user = userMapper.findByUsername(username);
+
+            // 4. 数据库也没有，缓存空值，防止缓存穿透
+            if(user == null){
+                redisUtil.setObject(key, null, 5, TimeUnit.MINUTES);
+                return null;
+            }
+
+            // 5. 写入缓存
+            redisUtil.setObject(key, user, 30, TimeUnit.MINUTES);
+            return user;
+        } finally {
+            lock.unlock();
         }
-        return user;
     }
 
     @Override
