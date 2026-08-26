@@ -2,6 +2,7 @@ package com.example.logindemo.service;
 
 import com.example.logindemo.entity.User;
 import com.example.logindemo.mapper.UserMapper;
+import com.example.logindemo.util.BloomFilterUtil;
 import com.example.logindemo.util.JwtUtil;
 import com.example.logindemo.util.PasswordUtil;
 import com.example.logindemo.util.RedisUtil;
@@ -22,6 +23,8 @@ public class UserServiceImpl implements UserService {
     private UserMapper userMapper;
     @Autowired
     private RedisUtil redisUtil;
+    @Autowired
+    private BloomFilterUtil bloomFilterUtil;
 
     @Autowired
     private RedissonClient redissonClient;
@@ -46,20 +49,34 @@ public class UserServiceImpl implements UserService {
         return null;
     }
     @Override
-    public boolean register(String username,String password,String email){
-        User existUser = userMapper.findByUsername(username);
-        if(existUser !=null){
-            return false;
+    public boolean register(String username, String password, String email) {
+        // 1. 先用布隆过滤器判断用户名是否可能存在
+        if (bloomFilterUtil.mightContain(username)) {
+            // 2. 可能存在，需要进一步查数据库确认（因为有误判）
+            User existUser = userMapper.findByUsername(username);
+            if (existUser != null) {
+                return false;  // 用户名真的已存在
+            }
         }
-        User user=new User();
+
+        // 3. 用户名肯定不存在，可以注册
+        User user = new User();
         user.setUsername(username);
         user.setPassword(PasswordUtil.encode(password));
         user.setEmail(email);
         user.setRole("USER");
         user.setStatus(1);
 
+        // 4. 插入数据库
         int result = userMapper.insertUser(user);
-        return result>0;
+        if (result <= 0) {
+            return false;
+        }
+
+        // 5. 注册成功后，把用户名加入布隆过滤器
+        bloomFilterUtil.add(username);
+
+        return true;
     }
     @Override
     public PageInfo<User> listUsers(int pageNum, int pageSize){
@@ -68,35 +85,41 @@ public class UserServiceImpl implements UserService {
         return new PageInfo<>(list);
     }
     @Override
-    public User findByUsername(String username){
-        String key="user:info:"+username;
+    public User findByUsername(String username) {
+        // 1. 先用布隆过滤器判断
+        // 如果布隆过滤器说肯定不存在，直接返回 null
+        if (!bloomFilterUtil.mightContain(username)) {
+            return null;
+        }
 
-        // 1. 先查缓存
+        // 2. 原来的缓存逻辑
+        String key = "user:info:" + username;
+
         User user = redisUtil.getObject(key, User.class);
-        if(user != null){
+        if (user != null) {
             return user;
         }
 
-        // 2. 缓存没有，加分布式锁
+        // 3. 缓存没有，加分布式锁
         RLock lock = redissonClient.getLock("lock:" + key);
         lock.lock();
         try {
             // 拿到锁后再查一次缓存
             user = redisUtil.getObject(key, User.class);
-            if(user != null){
+            if (user != null) {
                 return user;
             }
 
-            // 3. 查数据库
+            // 4. 查数据库
             user = userMapper.findByUsername(username);
 
-            // 4. 数据库也没有，缓存空值，防止缓存穿透
-            if(user == null){
+            // 5. 数据库也没有，缓存空值
+            if (user == null) {
                 redisUtil.setObject(key, null, 5, TimeUnit.MINUTES);
                 return null;
             }
 
-            // 5. 写入缓存
+            // 6. 写入缓存
             redisUtil.setObject(key, user, 30, TimeUnit.MINUTES);
             return user;
         } finally {
@@ -153,28 +176,38 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public boolean updateUserInfo(Long id, String username, String email){
-        User user=new User();
+    public boolean updateUserInfo(Long id, String username, String email) {
+        User user = new User();
         user.setId(id);
         user.setUsername(username);
         user.setEmail(email);
 
-        int result=userMapper.updateUser(user);
-        return result>0;
+        int result = userMapper.updateUser(user);
+        if (result > 0) {
+            // 用户名变了，加入布隆过滤器
+            bloomFilterUtil.add(username);
+            return true;
+        }
+        return false;
     }
 
     @Override
-    public User updateCurrentUserInfo(String currentUsername,String newUsername,String newEmail){
-        User user=userMapper.findByUsername(currentUsername);
-        if(user==null){
+    public User updateCurrentUserInfo(String currentUsername, String newUsername, String newEmail) {
+        User user = userMapper.findByUsername(currentUsername);
+        if (user == null) {
             throw new RuntimeException("用户不存在");
         }
         user.setUsername(newUsername);
         user.setEmail(newEmail);
 
-        int result=userMapper.updateUser(user);
-        if(result>0){
-            redisUtil.delete("user:info:"+currentUsername);
+        int result = userMapper.updateUser(user);
+        if (result > 0) {
+            // 删除旧缓存
+            redisUtil.delete("user:info:" + currentUsername);
+
+            // 新用户名加入布隆过滤器
+            bloomFilterUtil.add(newUsername);
+
             return user;
         }
         throw new RuntimeException("修改失败");

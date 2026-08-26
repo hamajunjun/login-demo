@@ -3,6 +3,7 @@ package com.example.logindemo.service;
 import com.example.logindemo.entity.Post;
 import com.example.logindemo.mapper.CommunityMapper;
 import com.example.logindemo.mapper.PostMapper;
+import com.example.logindemo.util.PostBloomFilterUtil;
 import com.example.logindemo.util.RedisUtil;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
@@ -20,6 +21,8 @@ import java.util.Random;
 public class PostServiceImpl implements PostService{
 
     private final Random random =new Random();
+    @Autowired
+    private PostBloomFilterUtil postBloomFilterUtil;
 
     @Autowired
     private RedissonClient redissonClient;
@@ -51,6 +54,9 @@ public class PostServiceImpl implements PostService{
         int result=postMapper.insertPost(post);
         if(result>0){
             communityMapper.updateRating(communityId);
+
+            // 发帖成功后，把新帖子 ID 加入布隆过滤器
+            postBloomFilterUtil.add(post.getId());
         }
         return result>0;
     }
@@ -67,6 +73,12 @@ public class PostServiceImpl implements PostService{
 
     @Override
     public Post getPostById(Long id){
+        // 0. 先用布隆过滤器判断帖子 ID 是否可能存在
+        // 如果不存在，直接返回 null，避免后续所有查询
+        if (!postBloomFilterUtil.mightContain(id)) {
+            return null;
+        }
+
         // 数据库浏览量+1（这个不需要锁，所有请求都应该计数）
         postMapper.increaseViewCount(id);
 
