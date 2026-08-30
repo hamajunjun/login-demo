@@ -26,7 +26,7 @@ public interface UserMapper {
     @Delete("DELETE FROM user WHERE id=#{id}")
     public int deleteById(@Param("id")Long id);
 
-    @Select("SELECT * FROM user WHERE username LIKE CONCAT('%',#{username},'%')")
+    @Select("SELECT * FROM user WHERE MATCH(username) AGAINST(#{username} IN BOOLEAN MODE)")
     public List<User> findByUsernameLike(@Param("username") String username);
 
     @Update("UPDATE user SET username=#{username},email=#{email} WHERE ID=#{id}")

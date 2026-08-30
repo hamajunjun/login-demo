@@ -8,6 +8,11 @@ import com.example.logindemo.util.RedisUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.logindemo.config.RabbitConfig;
+import com.example.logindemo.dto.NotificationMessage;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class PostLikeServiceImpl implements PostLikeService{
@@ -22,7 +27,7 @@ public class PostLikeServiceImpl implements PostLikeService{
     private PostMapper postMapper;
 
     @Autowired
-    private NotificationService notificationService;
+    private RabbitTemplate rabbitTemplate;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -40,14 +45,25 @@ public class PostLikeServiceImpl implements PostLikeService{
         boolean success=postLikeMapper.insert(postLike)>0;
         if(success){
             redisUtil.delete("post:detail:"+postId);
-            //通知帖子作者
+            // 通知帖子作者：改成发消息（异步）
             Post post=postMapper.findById(postId);
             if(post !=null && !post.getUserId().equals(userId)){
-                notificationService.sendNotification(
-                        post.getUserId(),
-                        "LIKE",
-                        "有人赞了你的帖子《" + post.getTitle() + "》"
-                );
+                NotificationMessage message = new NotificationMessage();
+                message.setUserId(post.getUserId());
+                message.setType("LIKE");
+                message.setContent("有人赞了你的帖子《" + post.getTitle() + "》");
+
+                // 关键：注册回调，等事务提交成功后再发消息
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        rabbitTemplate.convertAndSend(
+                                RabbitConfig.NOTIFY_EXCHANGE,
+                                RabbitConfig.NOTIFY_ROUTING_KEY,
+                                message
+                        );
+                    }
+                });
             }
         }
         return success;

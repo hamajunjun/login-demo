@@ -1,4 +1,5 @@
 package com.example.logindemo.mapper;
+import com.example.logindemo.entity.Post;
 
 import com.example.logindemo.entity.PostFavorite;
 import org.apache.ibatis.annotations.*;
@@ -17,6 +18,6 @@ public interface PostFavoriteMapper {
     @Select("SELECT * FROM post_favorite WHERE user_id = #{userId} AND post_id = #{postId}")
     PostFavorite findByUserIdAndPostId(@Param("userId") Long userId, @Param("postId") Long postId);
 
-    @Select("SELECT * FROM post_favorite WHERE user_id = #{userId} ORDER BY create_time DESC")
-    List<PostFavorite> findByUserId(Long userId);
+    @Select("SELECT p.* FROM post_favorite pf INNER JOIN post p ON p.id=pf.post_id WHERE pf.user_id=#{userId} ORDER BY pf.create_time DESC ")
+    List<Post> findFavoritesByUserId(Long userId);
 }

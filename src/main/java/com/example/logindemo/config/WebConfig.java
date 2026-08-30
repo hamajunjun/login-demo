@@ -29,6 +29,7 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/community/list")
                 .excludePathPatterns("/comment/list")
                 .excludePathPatterns("/postLike/count")
+                .excludePathPatterns("/mq/**")
                 // Knife4j / Swagger 相关路径放行
                 .excludePathPatterns("/doc.html")
                 .excludePathPatterns("/doc.html/**")

@@ -33,7 +33,7 @@ public interface PostMapper {
     @Select("SELECT * FROM post WHERE user_id=#{userId} ORDER BY create_time DESC")
     List<Post> findByUserId(Long userId);
 
-    @Select("SELECT * FROM post WHERE title LIKE CONCAT('%',#{keyword},'%') OR content LIKE CONCAT('%',#{keyword},'%') ORDER BY create_time DESC")
+    @Select("SELECT * FROM post WHERE MATCH(title, content) AGAINST(#{keyword} IN BOOLEAN MODE) ORDER BY create_time DESC")
     List<Post> findByKeyword(@Param("keyword") String keyWord);
 
     @Update("UPDATE post SET view_count=view_count+1 WHERE id=#{id}")

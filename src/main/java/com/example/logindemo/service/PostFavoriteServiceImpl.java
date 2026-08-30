@@ -3,24 +3,18 @@ package com.example.logindemo.service;
 import com.example.logindemo.entity.Post;
 import com.example.logindemo.entity.PostFavorite;
 import com.example.logindemo.mapper.PostFavoriteMapper;
-import com.example.logindemo.mapper.PostMapper;
-import com.example.logindemo.service.PostFavoriteService;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class PostFavoriteServiceImpl implements PostFavoriteService{
     @Autowired
     private PostFavoriteMapper postFavoriteMapper;
-
-    @Autowired
-    private PostMapper postMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -47,15 +41,7 @@ public class PostFavoriteServiceImpl implements PostFavoriteService{
     @Override
     public PageInfo<Post> listMyFavorites(Long userId, int pageNum, int pageSize){
         PageHelper.startPage(pageNum,pageSize);
-        List<PostFavorite> favoriteList = postFavoriteMapper.findByUserId(userId);
-
-        List<Post> postList=new ArrayList<>();
-        for(PostFavorite favorite:favoriteList){
-            Post post = postMapper.findById(favorite.getPostId());
-            if (post != null) {
-                postList.add(post);
-            }
-        }
+        List<Post> postList = postFavoriteMapper.findFavoritesByUserId(userId);
         return new PageInfo<>(postList);
     }
 }
