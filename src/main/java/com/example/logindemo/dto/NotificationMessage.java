@@ -9,6 +9,7 @@ import java.io.Serializable;
 @Data
 public class NotificationMessage implements Serializable {
 
+    private String messageId;  // 消息唯一 ID，用于幂等去重
     private Long userId;    // 通知给谁（被点赞的那个作者）
     private String type;    // 通知类型：LIKE / COMMENT / REPLY
     private String content; // 通知内容

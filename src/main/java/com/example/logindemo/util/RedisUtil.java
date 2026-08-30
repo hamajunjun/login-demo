@@ -74,4 +74,8 @@ public class RedisUtil {
             throw new RuntimeException("Redis 反序列化失败", e);
         }
     }
+    // 如果 key 不存在就设置，返回是否设置成功（原子操作，用于幂等去重）
+    public boolean setIfAbsent(String key, String value, long timeout, TimeUnit unit) {
+        return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, value, timeout, unit));
+    }
 }

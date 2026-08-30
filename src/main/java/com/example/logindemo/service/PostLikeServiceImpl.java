@@ -1,5 +1,6 @@
 package com.example.logindemo.service;
 
+import java.util.UUID;
 import com.example.logindemo.entity.Post;
 import com.example.logindemo.entity.PostLike;
 import com.example.logindemo.mapper.PostLikeMapper;
@@ -49,6 +50,7 @@ public class PostLikeServiceImpl implements PostLikeService{
             Post post=postMapper.findById(postId);
             if(post !=null && !post.getUserId().equals(userId)){
                 NotificationMessage message = new NotificationMessage();
+                message.setMessageId(UUID.randomUUID().toString());
                 message.setUserId(post.getUserId());
                 message.setType("LIKE");
                 message.setContent("有人赞了你的帖子《" + post.getTitle() + "》");
