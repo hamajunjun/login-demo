@@ -59,7 +59,7 @@ public class PostController {
                                  @RequestParam String title,
                                  @RequestParam String content){
         User user = userService.getCurrentUser(token);
-        postService.updatePost(id, title, content, user.getUsername());
+        postService.updatePost(id, title, content, user.getId());
         return Result.success("修改成功");
     }
 
@@ -68,7 +68,7 @@ public class PostController {
     public Result<String> delete(@RequestHeader("Authorization") String token,
                                  @RequestParam Long id){
         User user = userService.getCurrentUser(token);
-        postService.deletePost(id, user.getUsername());
+        postService.deletePost(id, user.getId());
         return Result.success("删除成功");
     }
     @Operation(summary = "小区帖子列表", description = "根据小区ID分页查询该小区下的帖子列表")

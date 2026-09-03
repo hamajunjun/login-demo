@@ -53,7 +53,7 @@ public class CommentController {
         User user = userService.getCurrentUser(token);
         String role = JwtUtil.getRole(token);
 
-        commentService.deleteComment(id, user.getUsername(), role);
+        commentService.deleteComment(id, user.getId(), role);
         return Result.success("删除成功");
     }
 }

@@ -13,9 +13,9 @@ public interface PostService {
 
     Post getPostById(Long id);
 
-    boolean updatePost(Long id,String title,String content,String username);
+    boolean updatePost(Long id, String title, String content, Long userId);
 
-    boolean deletePost(Long id,String username);
+    boolean deletePost(Long id, Long userId);
 
     PageInfo<Post> listByCommunityId(Long communityId,int pageNum,int pageSize);
 

@@ -20,4 +20,7 @@ public interface PostFavoriteMapper {
 
     @Select("SELECT p.* FROM post_favorite pf INNER JOIN post p ON p.id=pf.post_id WHERE pf.user_id=#{userId} ORDER BY pf.create_time DESC ")
     List<Post> findFavoritesByUserId(Long userId);
+
+    @Delete("DELETE FROM post_favorite WHERE post_id = #{postId}")
+    int deleteByPostId(@Param("postId") Long postId);
 }

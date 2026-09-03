@@ -20,4 +20,13 @@ public interface CommentMapper {
 
     @Delete("DELETE FROM comment WHERE id = #{id}")
     int deleteById(@Param("id") Long id);
+
+    @Delete("DELETE FROM comment WHERE parent_id = #{parentId}")
+    int deleteByParentId(@Param("parentId") Long parentId);
+
+    @Delete("DELETE FROM comment WHERE post_id = #{postId}")
+    int deleteByPostId(@Param("postId") Long postId);
+
+    @Update("UPDATE comment SET username = #{username} WHERE user_id = #{userId}")
+    int updateUsernameByUserId(@Param("userId") Long userId, @Param("username") String username);
 }

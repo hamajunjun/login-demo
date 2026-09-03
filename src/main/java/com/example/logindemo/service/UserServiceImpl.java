@@ -1,6 +1,8 @@
 package com.example.logindemo.service;
 
 import com.example.logindemo.entity.User;
+import com.example.logindemo.mapper.CommentMapper;
+import com.example.logindemo.mapper.PostMapper;
 import com.example.logindemo.mapper.UserMapper;
 import com.example.logindemo.util.BloomFilterUtil;
 import com.example.logindemo.util.JwtUtil;
@@ -12,6 +14,7 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -21,6 +24,10 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private PostMapper postMapper;
+    @Autowired
+    private CommentMapper commentMapper;
     @Autowired
     private RedisUtil redisUtil;
     @Autowired
@@ -134,6 +141,9 @@ public class UserServiceImpl implements UserService {
         if (user == null) {
             throw new RuntimeException("用户不存在");
         }
+        if (user.getStatus() != null && user.getStatus() == 0) {
+            throw new RuntimeException("账号已被禁用");
+        }
         return user;
     }
 
@@ -166,8 +176,23 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public boolean deleteUserById(Long id){
-        int result = userMapper.deleteById(id);
-        return result>0;
+        User user = userMapper.findById(id);
+        if (user == null) {
+            return false;
+        }
+
+        if (user.getStatus() != null && user.getStatus() == 0) {
+            redisUtil.delete("user:info:" + user.getUsername());
+            return true;
+        }
+
+        int result = userMapper.updateStatus(id, 0);
+        if (result > 0) {
+            redisUtil.delete("user:info:" + user.getUsername());
+            return true;
+        }
+
+        return false;
     }
 
     @Override
@@ -176,7 +201,19 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean updateUserInfo(Long id, String username, String email) {
+        // 先查出旧用户，拿到旧用户名，用来删除旧缓存
+        User oldUser = userMapper.findById(id);
+        if (oldUser == null) {
+            return false;
+        }
+
+        User sameNameUser = userMapper.findByUsername(username);
+        if (sameNameUser != null && !sameNameUser.getId().equals(id)) {
+            throw new RuntimeException("用户名已存在");
+        }
+
         User user = new User();
         user.setId(id);
         user.setUsername(username);
@@ -184,7 +221,16 @@ public class UserServiceImpl implements UserService {
 
         int result = userMapper.updateUser(user);
         if (result > 0) {
-            // 用户名变了，加入布隆过滤器
+            // 删除旧用户名对应的 Redis 缓存
+            redisUtil.delete("user:info:" + oldUser.getUsername());
+
+            // 同步帖子、评论中冗余保存的作者名
+            if (!oldUser.getUsername().equals(username)) {
+                postMapper.updateUsernameByUserId(id, username);
+                commentMapper.updateUsernameByUserId(id, username);
+            }
+
+            // 新用户名加入布隆过滤器
             bloomFilterUtil.add(username);
             return true;
         }
@@ -192,11 +238,18 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public User updateCurrentUserInfo(String currentUsername, String newUsername, String newEmail) {
         User user = userMapper.findByUsername(currentUsername);
         if (user == null) {
             throw new RuntimeException("用户不存在");
         }
+
+        User sameNameUser = userMapper.findByUsername(newUsername);
+        if (sameNameUser != null && !sameNameUser.getId().equals(user.getId())) {
+            throw new RuntimeException("用户名已存在");
+        }
+
         user.setUsername(newUsername);
         user.setEmail(newEmail);
 
@@ -204,6 +257,12 @@ public class UserServiceImpl implements UserService {
         if (result > 0) {
             // 删除旧缓存
             redisUtil.delete("user:info:" + currentUsername);
+
+            // 同步帖子、评论中冗余保存的作者名
+            if (!currentUsername.equals(newUsername)) {
+                postMapper.updateUsernameByUserId(user.getId(), newUsername);
+                commentMapper.updateUsernameByUserId(user.getId(), newUsername);
+            }
 
             // 新用户名加入布隆过滤器
             bloomFilterUtil.add(newUsername);
@@ -214,18 +273,45 @@ public class UserServiceImpl implements UserService {
     }
     @Override
     public boolean deleteCurrentUser(String username){
-        User user=userMapper.findByUsername(username);
-        if(user==null){
+        User user = userMapper.findByUsername(username);
+        if (user == null) {
             throw new RuntimeException("用户不存在");
         }
-        int result =userMapper.deleteById(user.getId());
-        return result>0;
+
+        if (user.getStatus() != null && user.getStatus() == 0) {
+            redisUtil.delete("user:info:" + username);
+            return true;
+        }
+
+        int result = userMapper.updateStatus(user.getId(), 0);
+        if (result <= 0) {
+            throw new RuntimeException("注销失败");
+        }
+
+        redisUtil.delete("user:info:" + username);
+        return true;
     }
 
     @Override
-    public boolean updateUserStatus(Long id,Integer status){
-        int result = userMapper.updateStatus(id,status);
-        return result>0;
+    public boolean updateUserStatus(Long id, Integer status) {
+        User user = userMapper.findById(id);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        if (status != null && status.equals(user.getStatus())) {
+            redisUtil.delete("user:info:" + user.getUsername());
+            return true;
+        }
+
+        int result = userMapper.updateStatus(id, status);
+
+        if (result > 0) {
+            redisUtil.delete("user:info:" + user.getUsername());
+            return true;
+        }
+
+        throw new RuntimeException("更新失败");
     }
 
     @Override

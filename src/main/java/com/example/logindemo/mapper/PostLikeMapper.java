@@ -16,4 +16,8 @@ public interface PostLikeMapper {
 
     @Select("SELECT * FROM post_like WHERE post_id=#{postId} AND user_id=#{userId}")
     PostLike findPostIdAndUserId(@Param("postId") Long postId,@Param("userId") Long userId);
+
+    @Delete("DELETE FROM post_like WHERE post_id = #{postId}")
+    int deleteByPostId(@Param("postId") Long postId);
+
 }

@@ -16,11 +16,22 @@ import org.redisson.api.RedissonClient;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.Random;
+import com.example.logindemo.mapper.CommentMapper;
+import com.example.logindemo.mapper.PostLikeMapper;
+import com.example.logindemo.mapper.PostFavoriteMapper;
 
 @Service
 public class PostServiceImpl implements PostService{
 
     private final Random random =new Random();
+    @Autowired
+    private PostLikeMapper postLikeMapper;
+
+    @Autowired
+    private PostFavoriteMapper postFavoriteMapper;
+    @Autowired
+    private CommentMapper commentMapper;
+
     @Autowired
     private PostBloomFilterUtil postBloomFilterUtil;
 
@@ -50,6 +61,7 @@ public class PostServiceImpl implements PostService{
         post.setUserId(userId);
         post.setCommunityId(communityId);
         post.setRating(rating);
+        post.setViewCount(0);
 
         int result=postMapper.insertPost(post);
         if(result>0){
@@ -132,39 +144,52 @@ public class PostServiceImpl implements PostService{
     }
 
     @Override
-    public boolean updatePost(Long id,String title,String content,String username){
+    public boolean updatePost(Long id, String title, String content, Long userId) {
         // 1. 先查出帖子
         Post post = postMapper.findById(id);
-        // 2.帖子不存在
-        if(post==null){
+        // 2. 帖子不存在
+        if (post == null) {
             throw new RuntimeException("帖子不存在");
         }
-        // 3. 判断是不是当前用户发的
-        if(!post.getUsername().equals(username)){
+
+        // 3. 判断是不是当前用户发的，按 userId 判断，避免用户改名后丢失权限
+        if (!post.getUserId().equals(userId)) {
             throw new RuntimeException("无权修改该帖子");
         }
+
         // 4. 执行更新
-        int result = postMapper.updatePost(id,title,content);
-        return result>0;
+        int result = postMapper.updatePost(id, title, content);
+        if (result > 0) {
+            redisUtil.delete("post:detail:" + id);
+        }
+        return result > 0;
     }
 
     @Override
-    public boolean deletePost(Long id,String username){
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deletePost(Long id, Long userId) {
         // 1. 查出帖子
-        Post post=postMapper.findById(id);
-        // 2. 帖子不存在
-        if(post==null){
+        Post post = postMapper.findById(id);
+        if (post == null) {
             throw new RuntimeException("帖子不存在");
         }
-        // 3. 判断是不是当前用户发的
-        if(!post.getUsername().equals(username)){
+
+        // 2. 判断是不是当前用户发的，按 userId 判断
+        if (!post.getUserId().equals(userId)) {
             throw new RuntimeException("无权删除该帖子");
         }
-        // 4. 执行删除
-        int result = postMapper.deletePost(id);
-        return result>0;
 
+        // 3. 删除帖子关联数据
+        deletePostData(id);
+
+        // 4. 删除帖子本身
+        int result = postMapper.deletePost(id);
+        if (result > 0 && post.getCommunityId() != null) {
+            communityMapper.updateRating(post.getCommunityId());
+        }
+        return result > 0;
     }
+
     @Override
     public PageInfo<Post> listByCommunityId(Long communityId,int pageNum,int pageSize){
         PageHelper.startPage(pageNum,pageSize);
@@ -182,13 +207,20 @@ public class PostServiceImpl implements PostService{
     }
 
     @Override
-    public boolean adminDeletePost(Long id){
-        Post post=postMapper.findById(id);
-        if(post==null){
+    @Transactional(rollbackFor = Exception.class)
+    public boolean adminDeletePost(Long id) {
+        Post post = postMapper.findById(id);
+        if (post == null) {
             return false;
         }
-        int result=postMapper.deletePost(id);
-        return result>0;
+
+        deletePostData(id);
+
+        int result = postMapper.deletePost(id);
+        if (result > 0 && post.getCommunityId() != null) {
+            communityMapper.updateRating(post.getCommunityId());
+        }
+        return result > 0;
     }
 
     @Override
@@ -206,5 +238,12 @@ public class PostServiceImpl implements PostService{
             post.setLikeCount(postLikeService.getLikeCount(post.getId()));
         }
         return new PageInfo<>(list);
+    }
+
+    private void deletePostData(Long postId) {
+        commentMapper.deleteByPostId(postId);
+        postLikeMapper.deleteByPostId(postId);
+        postFavoriteMapper.deleteByPostId(postId);
+        redisUtil.delete("post:detail:" + postId);
     }
 }

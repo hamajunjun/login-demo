@@ -9,5 +9,5 @@ public interface CommentService {
 
     PageInfo<Comment> listByPostId(Long postId, int pageNum, int pageSize);
 
-    boolean deleteComment(Long id, String currentUsername, String currentRole);
+    boolean deleteComment(Long id, Long currentUserId, String currentRole);
 }

@@ -65,4 +65,12 @@ public class JwtUtil {
         return jwt.getClaim("role").asString();
     }
 
+    /**
+     * 从 Token 中获取用户 ID
+     */
+    public static Long getUserId(String token) {
+        DecodedJWT jwt = verifyToken(token);
+        return jwt.getClaim("userId").asLong();
+    }
+
 }

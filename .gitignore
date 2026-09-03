@@ -31,3 +31,13 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Erlang/RabbitMQ 崩溃转储
+erl_crash.dump
+*.dump
+
+# 其他 AI 工具记忆文件
+.workbuddy/
+
+# 运行期生成的上传文件
+uploads/

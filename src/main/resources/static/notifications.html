@@ -117,6 +117,7 @@
     <a href="my-follows.html">我的关注</a>
     <a href="community.html">添加小区</a>
     <a href="profile.html">个人中心</a>
+    <a href="messages.html">私信</a>
     <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
     <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
 </div>
@@ -158,6 +159,7 @@
     } else {
         showAdminLinks();
         loadNotifications(1);
+        connectNotificationWs();   // 连接 WebSocket，实时接收新通知
     }
 
     // 根据 token 中的角色，决定是否显示管理员入口
@@ -323,6 +325,28 @@
             });
         }
         return response.json();
+    }
+
+    // 连接 WebSocket，实时接收新通知（收到后刷新通知列表）
+    function connectNotificationWs() {
+        if (!token) return;
+        const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://')
+            + location.host + '/ws/notification?token=' + token;
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = function () {
+            console.log('通知 WebSocket 已连接');
+        };
+        ws.onmessage = function (event) {
+            console.log('收到新通知，刷新列表：' + event.data);
+            loadNotifications(1);
+        };
+        ws.onclose = function () {
+            console.log('通知 WebSocket 已断开');
+        };
+        ws.onerror = function () {
+            console.log('通知 WebSocket 连接出错');
+        };
     }
 
     // 退出登录

@@ -30,6 +30,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/comment/list")
                 .excludePathPatterns("/postLike/count")
                 .excludePathPatterns("/mq/**")
+                // WebSocket 握手请求无法带 Authorization 头，身份靠 URL 里的 token 解析，这里放行
+                .excludePathPatterns("/ws/**")
                 // Knife4j / Swagger 相关路径放行
                 .excludePathPatterns("/doc.html")
                 .excludePathPatterns("/doc.html/**")

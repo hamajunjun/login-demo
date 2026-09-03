@@ -36,6 +36,13 @@ public class PostLikeServiceImpl implements PostLikeService{
         if(postId==null || userId==null){
             throw new RuntimeException("参数不能为空");
         }
+
+        // 先确认帖子存在，再插入点赞，避免给不存在的帖子制造脏数据
+        Post post = postMapper.findById(postId);
+        if (post == null) {
+            throw new RuntimeException("帖子不存在");
+        }
+
         PostLike exist = postLikeMapper.findPostIdAndUserId(postId,userId);
         if(exist !=null){
             throw new RuntimeException("已经点赞过了");
@@ -47,8 +54,7 @@ public class PostLikeServiceImpl implements PostLikeService{
         if(success){
             redisUtil.delete("post:detail:"+postId);
             // 通知帖子作者：改成发消息（异步）
-            Post post=postMapper.findById(postId);
-            if(post !=null && !post.getUserId().equals(userId)){
+            if(!post.getUserId().equals(userId)){
                 NotificationMessage message = new NotificationMessage();
                 message.setMessageId(UUID.randomUUID().toString());
                 message.setUserId(post.getUserId());

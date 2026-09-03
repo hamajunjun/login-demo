@@ -117,6 +117,7 @@
     <a href="my-follows.html">我的关注</a>
     <a href="profile.html">个人中心</a>
     <a href="notifications.html">消息中心<span id="unreadBadge" class="badge"></span></a>
+    <a href="messages.html">私信</a>
     <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
     <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
 </div>
@@ -186,6 +187,7 @@
 
     showAdminLinks();
     loadUnreadCount();
+    connectNotificationWs();   // 连接 WebSocket，实时刷新未读角标
 
     function showAdminLinks() {
         if (currentRole === 'ADMIN') {
@@ -670,6 +672,28 @@
             });
         }
         return response.json();
+    }
+
+    // 连接 WebSocket，实时接收新通知（收到后刷新未读角标）
+    function connectNotificationWs() {
+        if (!token) return;
+        const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://')
+            + location.host + '/ws/notification?token=' + token;
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = function () {
+            console.log('通知 WebSocket 已连接');
+        };
+        ws.onmessage = function () {
+            // 收到新通知，刷新右上角未读小红点
+            loadUnreadCount();
+        };
+        ws.onclose = function () {
+            console.log('通知 WebSocket 已断开');
+        };
+        ws.onerror = function () {
+            console.log('通知 WebSocket 连接出错');
+        };
     }
 
     // 退出登录

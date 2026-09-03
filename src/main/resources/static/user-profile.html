@@ -66,6 +66,7 @@
     <a href="my-follows.html">我的关注</a>
     <a href="profile.html">个人中心</a>
     <a href="notifications.html">消息中心<span id="unreadBadge" class="badge"></span></a>
+    <a href="messages.html">私信</a>
     <a id="adminLink" href="admin-users.html" style="display:none;">用户管理</a>
     <a id="adminPostsLink" href="admin-posts.html" style="display:none;">帖子管理</a>
 </div>
@@ -76,6 +77,7 @@
     <div class="info-row">用户名：<span id="username"></span></div>
     <div class="actions">
         <button id="followBtn" onclick="toggleFollow()" style="display:none;">关注</button>
+        <button id="messageBtn" onclick="messageUser()" style="display:none;">私信他</button>
     </div>
 </div>
 
@@ -96,6 +98,11 @@
         loadUnreadCount();
         if (token) {
             loadFollowStatus();
+            // 不能给自己发私信，所以看自己的主页时不显示「私信他」
+            const currentUserId = getUserIdFromToken(token);
+            if (currentUserId !== null && String(currentUserId) !== String(userId)) {
+                document.getElementById('messageBtn').style.display = 'inline';
+            }
         }
     }
 
@@ -113,6 +120,17 @@
             const payload = token.split('.')[1];
             const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
             return JSON.parse(decoded).role;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function getUserIdFromToken(token) {
+        if (!token) return null;
+        try {
+            const payload = token.split('.')[1];
+            const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+            return JSON.parse(decoded).userId;
         } catch (e) {
             return null;
         }
@@ -200,6 +218,14 @@
             });
         }
         return response.json();
+    }
+
+    function messageUser() {
+        if (!token) {
+            alert('请先登录');
+            return;
+        }
+        window.location.href = 'messages.html?receiverId=' + userId + '&receiverName=' + encodeURIComponent(username || '');
     }
 
     function logout() {
