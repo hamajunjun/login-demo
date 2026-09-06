@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <title>登录</title>
+  <link rel="stylesheet" href="app.css">
 </head>
-<body>
-<h2>登录</h2>
-
-<p>用户名：<input type="text" id="username"></p>
-<p>密码：<input type="password" id="password"></p>
-<p><button onclick="login()">登录</button></p>
-
-<p id="result"></p>
-<p>还没有账号？<a href="register.html">点这里注册</a></p>
-<p><a href="posts.html">先随便看看</a></p>
+<body class="auth-page">
+<main class="auth-card">
+  <h2>欢迎回来</h2>
+  <p class="subtext">登录后查看社区动态并参与讨论</p>
+  <label for="username">用户名</label>
+  <input type="text" id="username" placeholder="请输入用户名" autocomplete="username">
+  <label for="password">密码</label>
+  <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password">
+  <button onclick="login()">登录</button>
+  <p id="result"></p>
+  <p class="auth-links">还没有账号？<a href="register.html">立即注册</a><a class="browse-link" href="posts.html">先随便看看</a></p>
+</main>
 
 <script>
   function login() {
