@@ -1,0 +1,51 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: forum-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: login_demo
+      TZ: Asia/Shanghai
+    ports:
+      - "3307:3306"
+    volumes:
+      - forum-mysql-data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    container_name: forum-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - forum-redis-data:/data
+    command: redis-server --appendonly yes
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: forum-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: forum
+      RABBITMQ_DEFAULT_PASS: forum123456
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    volumes:
+      - forum-rabbitmq-data:/var/lib/rabbitmq
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: forum-app
+    environment:
+      SPRING_PROFILES_ACTIVE: container
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+volumes:
+  forum-mysql-data:
+  forum-redis-data:
+  forum-rabbitmq-data:

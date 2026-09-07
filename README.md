@@ -47,6 +47,36 @@ com.example.logindemo
 
 ## 环境要求
 
+### Docker 方式（推荐）
+
+只需安装并启动 Docker Desktop，不需要在本机安装 JDK、Maven、MySQL、Redis 或 RabbitMQ。
+
+```bash
+git clone https://github.com/hamajunjun/login-demo.git
+cd login-demo
+docker compose up -d --build
+```
+
+首次执行会下载镜像和 Maven 依赖，耗时会稍长；后续启动直接执行：
+
+```bash
+docker compose up -d
+```
+
+服务地址：
+
+| 服务 | 本机地址 |
+|------|----------|
+| 社区论坛 | http://localhost:8080/login.html |
+| MySQL | `localhost:3307` |
+| Redis | `localhost:6380` |
+| RabbitMQ | `localhost:5673` |
+| RabbitMQ 管理后台 | http://localhost:15673（账号：`forum`，密码：`forum123456`） |
+
+停止全部容器：`docker compose down`。该命令不会删除数据库、Redis 和 RabbitMQ 的持久化数据；如需连同数据一起清理，再执行 `docker compose down -v`。
+
+### 本机方式
+
 - JDK 17
 - Maven 3.6+
 - MySQL 8.0

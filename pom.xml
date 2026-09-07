@@ -116,7 +116,7 @@
                 <version>${spring-boot.version}</version>
                 <configuration>
                     <mainClass>com.example.logindemo.LoginDemoApplication</mainClass>
-                    <skip>true</skip>
+                    <skip>false</skip>
                 </configuration>
                 <executions>
                     <execution>

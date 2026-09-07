@@ -1,0 +1,6 @@
+# 不将本机编译产物和 IDE 配置发送给 Docker 构建环境。
+target/
+.idea/
+.git/
+*.iml
+uploads/
