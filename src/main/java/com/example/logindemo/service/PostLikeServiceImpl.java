@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.logindemo.config.RabbitConfig;
 import com.example.logindemo.dto.NotificationMessage;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -43,15 +44,15 @@ public class PostLikeServiceImpl implements PostLikeService{
             throw new RuntimeException("帖子不存在");
         }
 
-        PostLike exist = postLikeMapper.findPostIdAndUserId(postId,userId);
-        if(exist !=null){
-            throw new RuntimeException("已经点赞过了");
-        }
         PostLike postLike=new PostLike();
         postLike.setPostId(postId);
         postLike.setUserId(userId);
-        boolean success=postLikeMapper.insert(postLike)>0;
-        if(success){
+        try {
+            boolean success = postLikeMapper.insert(postLike) > 0;
+            if (!success) {
+                throw new RuntimeException("点赞失败");
+            }
+
             redisUtil.delete("post:detail:"+postId);
             // 通知帖子作者：改成发消息（异步）
             if(!post.getUserId().equals(userId)){
@@ -73,8 +74,12 @@ public class PostLikeServiceImpl implements PostLikeService{
                     }
                 });
             }
+            return true;
+        } catch (DuplicateKeyException e) {
+            // 联合唯一索引保证同一用户只能点赞一次。并发或重复请求发生时，
+            // 数据库会抛出重复键异常；此时目标状态已经达成，直接按成功处理。
+            return true;
         }
-        return success;
     }
 
     @Override
@@ -83,15 +88,12 @@ public class PostLikeServiceImpl implements PostLikeService{
         if(postId==null || userId==null){
             throw new RuntimeException("参数不能为空");
         }
-        PostLike exist=postLikeMapper.findPostIdAndUserId(postId,userId);
-        if(exist==null){
+        int rows = postLikeMapper.delete(postId, userId);
+        if (rows == 0) {
             throw new RuntimeException("未点赞该帖子");
         }
-        boolean success= postLikeMapper.delete(postId,userId)>0;
-        if(success){
-            redisUtil.delete("post:detail:"+postId);
-        }
-        return success;
+        redisUtil.delete("post:detail:" + postId);
+        return true;
     }
 
     @Override

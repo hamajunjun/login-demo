@@ -6,6 +6,7 @@ import com.example.logindemo.mapper.UserFollowMapper;
 import com.example.logindemo.mapper.UserMapper;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,22 +32,26 @@ public class UserFollowServiceImpl implements UserFollowService{
             throw new RuntimeException("被关注的用户不存在");
         }
 
-        UserFollow exist=userFollowMapper.findOne(userId, followingId);
-        if(exist !=null){
-            throw new RuntimeException("已经关注过了");
-        }
-
         UserFollow follow = new UserFollow();
         follow.setFollowerId(userId);
         follow.setFollowingId(followingId);
-        userFollowMapper.insert(follow);
+        try {
+            int rows = userFollowMapper.insert(follow);
+            if (rows != 1) {
+                throw new RuntimeException("关注失败");
+            }
+        } catch (DuplicateKeyException e) {
+            // 联合唯一索引保证同一用户只能关注目标用户一次。重复请求时，
+            // 目标状态已达成，按成功处理即可。
+            return;
+        }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void unfollow(Long userId, Long followingId){
-        int result= userFollowMapper.delete(userId, followingId);
-        if(result==0){
+        int rows = userFollowMapper.delete(userId, followingId);
+        if (rows == 0) {
             throw new RuntimeException("未关注该用户");
         }
     }

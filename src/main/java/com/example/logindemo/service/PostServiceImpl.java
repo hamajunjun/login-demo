@@ -1,6 +1,7 @@
 package com.example.logindemo.service;
 
 import com.example.logindemo.entity.Post;
+import com.example.logindemo.dto.PostLikeCountDTO;
 import com.example.logindemo.mapper.CommunityMapper;
 import com.example.logindemo.mapper.PostMapper;
 import com.example.logindemo.util.PostBloomFilterUtil;
@@ -13,7 +14,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.redisson.api.RedissonClient;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.Random;
 import com.example.logindemo.mapper.CommentMapper;
@@ -77,9 +81,7 @@ public class PostServiceImpl implements PostService{
     public PageInfo<Post> listPosts(int pageNum, int pageSize){
         PageHelper.startPage(pageNum,pageSize);
         List<Post> list=postMapper.findAll();
-        for(Post post:list){
-            post.setLikeCount(postLikeService.getLikeCount(post.getId()));
-        }
+        fillLikeCounts(list);
         return new PageInfo<>(list);
     }
 
@@ -91,17 +93,15 @@ public class PostServiceImpl implements PostService{
             return null;
         }
 
-        // 数据库浏览量+1（这个不需要锁，所有请求都应该计数）
-        postMapper.increaseViewCount(id);
+        // 浏览量先累计到 Redis，定时任务再批量写回 MySQL
+        String viewKey = "post:view:" + id;
+        redisUtil.increment(viewKey);
+        redisUtil.addToSet("post:view:pending", id.toString());
 
         // 1. 先查 Redis 缓存
         String key = "post:detail:" + id;
         Post post = redisUtil.getObject(key, Post.class);
         if (post != null) {
-            // 缓存命中，把缓存里的 viewCount 也 +1
-            post.setViewCount(post.getViewCount()+1);
-            int expireMinutes=30+random.nextInt(10);
-            redisUtil.setObject(key,post,expireMinutes,TimeUnit.MINUTES);
             return post;
         }
 
@@ -113,9 +113,6 @@ public class PostServiceImpl implements PostService{
             // 拿到锁后再查一次，可能别的线程已经重建了缓存
             post=redisUtil.getObject(key,Post.class);
             if (post != null) {
-                post.setViewCount(post.getViewCount()+1);
-                int expireMinutes=30+random.nextInt(10);
-                redisUtil.setObject(key,post,expireMinutes,TimeUnit.MINUTES);
                 return post;
             }
 
@@ -194,15 +191,14 @@ public class PostServiceImpl implements PostService{
     public PageInfo<Post> listByCommunityId(Long communityId,int pageNum,int pageSize){
         PageHelper.startPage(pageNum,pageSize);
         List<Post> list=postMapper.findByCommunityId(communityId);
+        fillLikeCounts(list);
         return new PageInfo<>(list);
     }
     @Override
     public PageInfo<Post> listByUserId(Long userId,int pageNum,int pageSize){
         PageHelper.startPage(pageNum,pageSize);
         List<Post> list=postMapper.findByUserId(userId);
-        for (Post post : list) {
-            post.setLikeCount(postLikeService.getLikeCount(post.getId()));
-        }
+        fillLikeCounts(list);
         return new PageInfo<>(list);
     }
 
@@ -227,6 +223,7 @@ public class PostServiceImpl implements PostService{
     public PageInfo<Post> findByKeyword(String keyword,int pageNum,int pageSize){
         PageHelper.startPage(pageNum,pageSize);
         List<Post> list=postMapper.findByKeyword(keyword);
+        fillLikeCounts(list);
         return new PageInfo<>(list);
     }
 
@@ -234,10 +231,33 @@ public class PostServiceImpl implements PostService{
     public PageInfo<Post> getHotList(int pageNum,int pageSize){
         PageHelper.startPage(pageNum,pageSize);
         List<Post> list=postMapper.findHotList();
-        for(Post post : list){
-            post.setLikeCount(postLikeService.getLikeCount(post.getId()));
-        }
+        fillLikeCounts(list);
         return new PageInfo<>(list);
+    }
+
+    private void fillLikeCounts(List<Post> posts) {
+        if (posts.isEmpty()) {
+            return;
+        }
+
+        List<Long> postIds = new ArrayList<>();
+        for (Post post : posts) {
+            postIds.add(post.getId());
+        }
+
+        List<PostLikeCountDTO> countList = postLikeMapper.countByPostIds(postIds);
+        Map<Long, Integer> likeCountMap = new HashMap<>();
+        for (PostLikeCountDTO count : countList) {
+            likeCountMap.put(count.getPostId(), count.getLikeCount());
+        }
+
+        for (Post post : posts) {
+            Integer likeCount = likeCountMap.get(post.getId());
+            if (likeCount == null) {
+                likeCount = 0;
+            }
+            post.setLikeCount(likeCount);
+        }
     }
 
     private void deletePostData(Long postId) {

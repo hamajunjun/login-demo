@@ -6,6 +6,7 @@ import com.example.logindemo.mapper.PostFavoriteMapper;
 import com.example.logindemo.mapper.PostMapper;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,30 +30,28 @@ public class PostFavoriteServiceImpl implements PostFavoriteService{
             throw new RuntimeException("帖子不存在");
         }
 
-        // 再检查是否已经收藏
-        PostFavorite existing = postFavoriteMapper.findByUserIdAndPostId(userId, postId);
-        if (existing != null) {
-            throw new RuntimeException("已经收藏过了");
-        }
-
         PostFavorite favorite=new PostFavorite();
         favorite.setUserId(userId);
         favorite.setPostId(postId);
 
-        postFavoriteMapper.insert(favorite);
+        try {
+            int rows = postFavoriteMapper.insert(favorite);
+            if (rows != 1) {
+                throw new RuntimeException("收藏失败");
+            }
+        } catch (DuplicateKeyException e) {
+            // 联合唯一索引保证同一用户只能收藏一次。重复请求时，
+            // 目标状态已达成，按成功处理即可。
+            return;
+        }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void cancelFavorite(Long userId, Long postId){
-        PostFavorite existing = postFavoriteMapper.findByUserIdAndPostId(userId, postId);
-        if (existing == null) {
-            throw new RuntimeException("未收藏该帖子");
-        }
-
         int result = postFavoriteMapper.delete(userId, postId);
-        if (result <= 0) {
-            throw new RuntimeException("取消收藏失败");
+        if (result == 0) {
+            throw new RuntimeException("未收藏该帖子");
         }
     }
 

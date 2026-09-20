@@ -39,6 +39,12 @@ public interface PostMapper {
     @Update("UPDATE post SET view_count=view_count+1 WHERE id=#{id}")
     int increaseViewCount(Long id);
 
+    @Update("UPDATE post SET view_count = view_count + #{count} WHERE id = #{id}")
+    int increaseViewCountBy(
+            @Param("id") Long id,
+            @Param("count") Long count
+    );
+
     @Update("UPDATE post SET username = #{username} WHERE user_id = #{userId}")
     int updateUsernameByUserId(@Param("userId") Long userId, @Param("username") String username);
 

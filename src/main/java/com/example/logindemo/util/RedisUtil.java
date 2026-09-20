@@ -78,4 +78,28 @@ public class RedisUtil {
     public boolean setIfAbsent(String key, String value, long timeout, TimeUnit unit) {
         return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, value, timeout, unit));
     }
+    // Redis 中的数字加 1，并返回加完后的值
+    public Long increment(String key) {
+        return redisTemplate.opsForValue().increment(key);
+    }
+
+    // Redis 中的数字增加指定数量
+    public Long increment(String key, long delta) {
+        return redisTemplate.opsForValue().increment(key, delta);
+    }
+
+    // 原子地获取 value，并删除这个 key
+    public String getAndDelete(String key) {
+        return redisTemplate.opsForValue().getAndDelete(key);
+    }
+
+    // 向 Redis 的 Set 集合中添加一个值
+    public void addToSet(String key, String value) {
+        redisTemplate.opsForSet().add(key, value);
+    }
+
+    // 从 Redis 的 Set 集合中取出并删除一个值
+    public String popFromSet(String key) {
+        return redisTemplate.opsForSet().pop(key);
+    }
 }
